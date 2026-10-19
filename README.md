@@ -21,8 +21,7 @@ UrbanVideo-Bench.code/
 ├── server.py                     # Optional local progress dashboard
 ├── templates/dashboard.html      # Dashboard frontend
 ├── question_generation/          # Basic, Goal, and Route MCQ generation
-├── deployment/                   # Windows server, dataset, and VLM service tools
-└── docs/                         # Repository and reproducibility notes
+└── deployment/                   # Windows server, dataset, and VLM service tools
 ```
 
 For the complete Windows workflow, read [`deployment/WINDOWS_NATIVE_DEPLOYMENT.md`](deployment/WINDOWS_NATIVE_DEPLOYMENT.md) first, then [`deployment/SERVER_FULL_RUN.md`](deployment/SERVER_FULL_RUN.md). The latter covers Hugging Face download and verification, local video supplementation, local Qwen2.5-VL service startup, server-side OpenCV/CLIP/inference, evaluation, and saving the Git commit and environment metadata with each experiment.
@@ -42,8 +41,6 @@ Use a distinct `RUN_ID` for every baseline or ablation. This keeps CSV, dashboar
 
 ## Dataset generation
 The pipeline includes four steps: video curation, MCQ generation, blind filtering, and human refinement. 
-The dataset statistics are shown in the following figure b-f.
-![UrbanVideo-Bench.code](flowchart.png)
 
 
 We provide three seperated scripts: Basic, Goal, and Route for generating questions with Gemini, as the workflows are slightly different due to differences in the forms of input data and features of tasks:
