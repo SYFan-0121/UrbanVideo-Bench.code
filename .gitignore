@@ -1,0 +1,72 @@
+# Python and local environments
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+venv/
+.venv/
+.venv-*/
+
+# Secrets and local configuration
+.env
+.env.*
+*.key
+*.pem
+
+# Dataset and generated media (download/restore with deployment scripts)
+dataset/
+data/
+cache/
+hf-cache/
+model-cache/
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Experiment outputs and runtime logs
+result/
+output/
+logs/
+*.log
+deployment/installed-packages.txt
+deployment/runtime-info.json
+
+# Archives and editor/system files
+*.rar
+*.zip
+*.7z
+*.tar
+*.gz
+
+# Local research material, backups, and one-off scripts
+AGENTS.md
+latest_model_32frame_benchmark_test.py
+server - 副本.py
+模型与API选择.txt
+**/模型与API选择.txt
+agentic+召回版/
+五维置信度版/
+五维置信度（低正确率不再投票版）/
+附件3_PPT模板/
+研究内容框架图.*
+tmp_manual_source.pdf
+research_content_framework.svg
+categorized_questions/
+
+# Local Python bytecode can appear in nested deployment folders
+**/__pycache__/
+
+# Common experiment artifacts
+*.parquet
+*.xlsx
+*.sqlite3
+*.safetensors
+*.pt
+*.pth
+.idea/
+.vscode/
+Thumbs.db
+Desktop.ini

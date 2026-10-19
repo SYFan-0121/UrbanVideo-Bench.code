@@ -6,6 +6,31 @@ The benchmark is designed to evaluate whether video-large language models (Video
 - **Project**: https://embodiedcity.github.io/UrbanVideo-Bench/
 - **Dataset**: https://huggingface.co/datasets/EmbodiedCity/UrbanVideo-Bench
 
+## Research-server version
+
+The repository keeps reproducible source code and deployment helpers. Dataset files, videos, model weights, API keys, caches, and experiment results are intentionally kept outside Git and restored on the Windows server after cloning.
+
+```text
+UrbanVideo-Bench.code/
+├── run.py                         # Benchmark inference, frame sampling, resume logic
+├── eval.py                        # Accuracy tables and Excel reports
+├── prompts.py                    # Question-category prompts
+├── confidence.py                 # Option extraction and STRIVE scoring
+├── agentic_retrieval.py          # Optional CLIP semantic frame retrieval
+├── vlm_api.py                    # MiMo/Qwen/OpenAI-compatible provider adapter
+├── server.py                     # Optional local progress dashboard
+├── templates/dashboard.html      # Dashboard frontend
+├── question_generation/          # Basic, Goal, and Route MCQ generation
+├── deployment/                   # Windows server, dataset, and VLM service tools
+└── docs/                         # Repository and reproducibility notes
+```
+
+For the complete Windows workflow, read [`deployment/WINDOWS_NATIVE_DEPLOYMENT.md`](deployment/WINDOWS_NATIVE_DEPLOYMENT.md) first, then [`deployment/SERVER_FULL_RUN.md`](deployment/SERVER_FULL_RUN.md). The latter covers Hugging Face download and verification, local video supplementation, local Qwen2.5-VL service startup, server-side OpenCV/CLIP/inference, evaluation, and saving the Git commit and environment metadata with each experiment.
+
+The current inference code reads provider configuration from environment variables. For a local Qwen-compatible service, use `VLM_PROVIDER=qwen`, `QWEN_BASE_URL=http://127.0.0.1:8000/v1`, and `OPENAI_API_KEY=local`. For a cloud provider, set its API key in the shell; never write the key into a Python file or commit it.
+
+Use a distinct `RUN_ID` for every baseline or ablation. This keeps CSV, dashboard SQLite, and evaluation outputs separate while the Git commit records the exact code version.
+
 ## News
 🎉 Accepted as an oral presentation at ACL 2025!
 

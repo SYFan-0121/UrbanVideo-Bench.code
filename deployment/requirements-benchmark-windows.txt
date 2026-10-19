@@ -1,0 +1,19 @@
+# Full server environment: VLM service plus UrbanVideo-Bench inference/CLIP.
+-r requirements-windows.txt
+
+# Video decoding and benchmark data.
+opencv-python-headless>=4.10,<5
+pandas>=2.2,<3
+pyarrow>=18,<24
+requests>=2.32,<3
+openpyxl>=3.1,<4
+
+# Optional live dashboard (server.py).
+flask>=3.0,<4
+flask-socketio>=5.3,<6
+
+# Agentic semantic retrieval (CLIP via SentenceTransformers).
+sentence-transformers>=4.1,<6
+
+# Resumable Hugging Face dataset/model downloads.
+huggingface-hub>=0.34,<1
