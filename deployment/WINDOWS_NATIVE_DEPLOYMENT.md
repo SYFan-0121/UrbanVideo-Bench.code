@@ -1,5 +1,7 @@
 # Windows 服务器上的本地 Video-VLM 部署
 
+本文用于说明 Windows 原生 VLM 环境、SSH 隧道与模型服务部署。
+
 本文针对一台只允许使用 Windows 的共享服务器：当前截图显示单张 Quadro RTX 8000（`46080 MiB`，约 45 GiB 可见显存）、128 GB 内存、Xeon 4215R。方案是 Windows 原生 Python + CUDA PyTorch + Transformers。服务器和你的电脑都运行 Windows。
 
 优先跑通 Qwen2.5-VL-7B-Instruct 的 FP16 推理；资源紧张时可把模型名换成同架构的 Qwen2.5-VL-3B-Instruct。此脚本专门适配 Qwen2.5-VL，其他架构需要另外的加载代码。RTX 8000 属于 Turing，先使用 FP16，不按原生 BF16/FlashAttention-2 路线配置。这里给出的是部署候选配置，尚未在你的服务器上完成 GPU 实测。
