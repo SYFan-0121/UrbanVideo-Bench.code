@@ -1,7 +1,18 @@
 # 实验代码版本记录
 
+本文用于记录分支用途、固定实验标签、版本差异与验证结果。
+
+## 分支整理（2026-10-29）
+
+- 默认维护分支：`main`，当前为 16 类统一 Agentic 版本。
+- 旧版归档分支：`codex/archive-agentic-12class`，固定在 `bfea96b`。
+- 原 `codex/research-server-full-run` 的旧版源码在归档分支和旧版标签中保留；原 `codex/agentic-16class` 与 `main` 重复，后续统一维护 `main`。
+- 两个已发布实验标签保持原有提交。本次整理只补充功能注释与文档，不改变模型推理行为。
+- GitHub 文件列表的说明来自最近一次提交；逐文件功能索引见 [README](../README.md#文件功能索引)。
+
 ## 旧版：12 类 Agentic 检索 + 4 类原始 STRIVE
 
+- 归档分支：`codex/archive-agentic-12class`。
 - 固定标签：`agentic-12class-original-20261029`。
 - 提交：`bfea96b60338a95c5b6662d690f38822fc318c9f`。
 - 服务器修改前源码备份：`D:\VLM\syf\code-backups\urbanvideo-12class-original-20261029_154538.tar.gz`。
@@ -16,8 +27,8 @@
 
 ## 新版：16类都进入Agentic+STRIVE
 
-- 分支：`codex/agentic-16class`。
-- 固定标签：`agentic-16class-20261029`。
+- 维护分支：`main`。
+- 固定标签：`agentic-16class-20261029`，对应提交 `30acd257c8b29297c97c6f402b30835236a8034f`。
 - `AGENTIC_GLOBAL_MODE=strive`：全部 16 类进入 Agentic 检索 + STRIVE。
 - `AGENTIC_GLOBAL_MODE=no_vote`：全部 16 类进入 Agentic 检索，检索后单次回答，不进行 STRIVE 投票。
 
