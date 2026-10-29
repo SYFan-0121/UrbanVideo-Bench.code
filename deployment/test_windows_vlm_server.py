@@ -23,7 +23,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from deployment import windows_vlm_server as service
-import vlm_api
+from agentic import vlm_api
 
 
 class ServiceContractTests(unittest.TestCase):
@@ -158,7 +158,8 @@ class ProjectIntegrationTests(unittest.TestCase):
     def test_result_path_and_resume_discovery(self):
         # Execute only these pure helpers: importing run.py would pull in the
         # benchmark and optional video/retrieval dependencies unnecessarily.
-        tree = ast.parse(Path("run.py").read_text(encoding="utf-8"))
+        source = Path(__file__).resolve().parents[1] / "agentic" / "run.py"
+        tree = ast.parse(source.read_text(encoding="utf-8"))
         names = {"make_safe_run_id", "result_csv_path", "discover_run_ids"}
         helpers = ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names], type_ignores=[])
         namespace = {"os": os, "re": re, "glob": glob}
