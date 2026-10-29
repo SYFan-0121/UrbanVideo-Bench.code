@@ -1,6 +1,4 @@
-"""
-agentic_retrieval.py
-Agentic 检索式抽帧模块。
+"""检索规划、多源候选池、可选 CLIP 召回、VLM 重排与帧预算融合。
 
 目标：在不把整段视频全部送给 VLM 的情况下，先用轻量检索找出可能有用的证据帧，
 再组合成最终 n_frames 张 base64 JPEG 帧交给 run.py / confidence.py 使用。
