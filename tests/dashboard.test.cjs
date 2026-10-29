@@ -1,3 +1,4 @@
+// 功能：回归检查题目选项解析、等待状态与答案高亮。
 // Run the real template functions with a small DOM stub; no browser dependencies.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
