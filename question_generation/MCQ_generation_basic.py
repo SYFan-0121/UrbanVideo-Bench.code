@@ -1,3 +1,5 @@
+"""提取视频运动及物体信息，生成基础感知与推理选择题。"""
+
 import time
 import os
 import re
