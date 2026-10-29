@@ -2,7 +2,7 @@
 
 The dataset is intentionally kept outside Git.  snapshot_download resumes
 interrupted transfers and materializes the files under the requested local
-directory, so run.py can continue using dataset/MCQ.parquet and
+directory, so both experiment folders can use dataset/MCQ.parquet and
 dataset/videos/*.mp4 relative paths.
 """
 
