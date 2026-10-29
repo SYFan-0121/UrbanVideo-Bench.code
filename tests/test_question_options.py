@@ -1,4 +1,4 @@
-"""Regression checks for the actual 2–7 option questions, including answer G."""
+"""检查 2–7 项题目的提示范围、答案提取与 G 选项评估。"""
 
 import unittest
 
