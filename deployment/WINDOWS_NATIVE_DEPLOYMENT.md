@@ -217,7 +217,8 @@ $env:RUN_ID = 'qwen25vl7b_windows_smoke'
 $env:RUN_MODE = 'new'
 & .\venv\Scripts\python.exe deployment\smoke_test.py
 # 分级测试通过并准备正式运行后，再执行下面这行：
-& .\venv\Scripts\python.exe run.py
+Set-Location .\agentic
+& ..\venv\Scripts\python.exe run.py
 ```
 
 若服务设置了 `VLM_API_KEY`，本机也需设置同名变量；此时适配器优先使用该 key。本地回环端点不会优先拿遗留的 Dashscope key。这里的 `VLM_PROVIDER=qwen` 只是复用项目的 Qwen 消息适配代码；URL 已经指向本地服务，请求不会发送给 Dashscope。
@@ -226,7 +227,7 @@ $env:RUN_MODE = 'new'
 
 `VLM_OUTER_CONCURRENCY=1` 控制 QA 外层并发；项目中的 STRIVE `K=3` 是实验算法参数，不能为了省资源随意改成 `K=1` 后再把结果称为同一个 STRIVE 实验。若要做单投票基线，应明确记录为单独实验配置；若要保持 K=3，三个请求会排队串行，速度较慢但算法含义不变。
 
-服务默认 temperature=0（贪心生成）；显式传入 temperature>0 时才采样，top_p 只在此时使用。接口拒绝未实现的请求字段。本方案把视频帧作为**有序多图片**输入，没有构造 Qwen 原生 video token/时间位置输入；论文应区分“多图片抽帧评估”和“原生视频接口评估”。现有 `run.py` 包含检索/定位/投票策略，不能把整套默认运行结果直接称为纯均匀抽帧基线。
+服务默认 temperature=0（贪心生成）；显式传入 temperature>0 时才采样，top_p 只在此时使用。接口拒绝未实现的请求字段。本方案把视频帧作为**有序多图片**输入，没有构造 Qwen 原生 video token/时间位置输入；论文应区分“多图片抽帧评估”和“原生视频接口评估”。`agentic/run.py` 包含检索/定位/投票策略，不能把整套默认运行结果直接称为纯均匀抽帧基线。
 
 每次实验记录：模型完整名称和 revision、Python 包版本、抽帧数量和分辨率、prompt、`max_tokens`、temperature、数据子集、运行时间和 GPU 显存峰值。当前本地数据与 MCQ 匹配的是一个子集，所有模型应固定同一题号集合。以下命令可保存服务器环境；`/health` 的 revision 在可读取时显示模型提交号，复现实验启动时用 `--revision <该提交号>` 固定模型和 processor：
 
