@@ -1,3 +1,5 @@
+# 功能：排除数据、权重、密钥、缓存和实验产物。
+
 # Python and local environments
 __pycache__/
 *.py[cod]
