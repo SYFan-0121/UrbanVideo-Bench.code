@@ -1,4 +1,4 @@
-"""全视频均匀 32 帧、单次回答基准；独立于 run.py 的 Agentic 流程。
+"""无水印均匀抽帧、单次回答基准；长视频取 32 帧，短视频取全部帧。
 
 复用 latest_model_32frame_benchmark_test.py 的逐题推理、CSV 保存与续跑结构。
 只解码目标帧，复用项目 Prompt、A–G 答案提取和 VLM 接口，不加载 Agentic 检索。
@@ -23,46 +23,34 @@ from vlm_api import create_vlm_client, vlm_chat_completion
 
 
 N_FRAMES = 32
-STRATEGY = "uniform_32_no_vote"
+STRATEGY = "uniform_32_no_watermark_no_vote"
 
 
 def safe_name(value):
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value)).strip("_") or "default"
 
 
-def add_timestamp(frame, index, total, fps):
-    """沿用当前实验的水印样式，保持与已完成均匀基准的图像输入一致。"""
-    height, width = frame.shape[:2]
-    text = f"Frame {index + 1}/{total} | t={index / fps if fps > 0 else 0:.1f}s"
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    size = cv2.getTextSize(text, font, 0.6, 2)[0]
-    x, y = width - size[0] - 15, height - 15
-    overlay = frame.copy()
-    cv2.rectangle(overlay, (x - 8, y - size[1] - 8), (x + size[0] + 8, y + 8), (0, 0, 0), -1)
-    frame = cv2.addWeighted(overlay, 0.7, frame, 0.3, 0)
-    cv2.putText(frame, text, (x, y), font, 0.6, (255, 255, 255), 2)
-    return frame
-
-
 def sample_uniform32(video_path):
-    """包含首尾帧的等间隔采样；解码不足 32 帧时记录失败，不缩减预算。"""
+    """长视频等间隔取首尾共 32 帧；不足 32 帧取全部原始帧，不叠加水印。"""
     video = cv2.VideoCapture(str(video_path))
     try:
         if not video.isOpened():
             raise ValueError(f"Cannot open video: {video_path}")
         total = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-        if total < N_FRAMES:
-            raise ValueError(f"Requires {N_FRAMES} frames; video has {total}: {video_path}")
-        fps = video.get(cv2.CAP_PROP_FPS)
-        step = (total - 1) / (N_FRAMES - 1)
-        indices = [int(i * step) for i in range(N_FRAMES)]
+        if total <= 0:
+            raise ValueError(f"Video contains no frames: {video_path}")
+        if total <= N_FRAMES:
+            indices = list(range(total))
+        else:
+            step = (total - 1) / (N_FRAMES - 1)
+            indices = [int(i * step) for i in range(N_FRAMES)]
         frames = []
         for index in indices:
             video.set(cv2.CAP_PROP_POS_FRAMES, index)
             success, frame = video.read()
             if not success:
                 raise ValueError(f"Cannot decode frame {index}: {video_path}")
-            success, buffer = cv2.imencode(".jpg", add_timestamp(frame, index, total, fps))
+            success, buffer = cv2.imencode(".jpg", frame)
             if not success:
                 raise ValueError(f"Cannot encode frame {index}: {video_path}")
             frames.append(base64.b64encode(buffer).decode("utf-8"))
@@ -70,6 +58,7 @@ def sample_uniform32(video_path):
             "strategy": STRATEGY, "target_frames": N_FRAMES, "actual_frames": len(frames),
             "window": [0.0, 1.0], "start_ratio": 0.0, "end_ratio": 1.0,
             "selected_indices": indices, "total_frames": total,
+            "watermark": False,
         }
     finally:
         video.release()
@@ -136,7 +125,7 @@ def run_benchmark(results, result_path, video_dir, client, model, run_id):
     processed = int(done.sum())
     correct = int(results.loc[done, "Output"].map(extract_option).eq(results.loc[done, "answer"]).sum())
     pending = results.index[~done].tolist()
-    print(f"Uniform baseline: {N_FRAMES} full-video frames; one answer call; pending={len(pending)}", flush=True)
+    print(f"Uniform baseline: up to {N_FRAMES} frames; all frames for short videos; no watermark; one answer call; pending={len(pending)}", flush=True)
     for index in pending:
         row = results.loc[index]
         video_path = video_dir / str(row["video_id"])
@@ -148,10 +137,10 @@ def run_benchmark(results, result_path, video_dir, client, model, run_id):
             "accuracy": correct / processed if processed else 0,
         }
         print(f"[QA #{index}] {row['question_category']} | {row['video_id']} | {STRATEGY}", flush=True)
-        emit_progress({**payload, "stage": "全视频均匀抽取 32 帧，单次模型回答"})
+        emit_progress({**payload, "stage": "均匀抽取至多 32 帧，短视频取全部帧，不加水印"})
         try:
             frames, retrieval = sample_uniform32(video_path)
-            emit_progress({**payload, "stage": "已抽取 32 帧，等待模型回答", "frames": frames})
+            emit_progress({**payload, "stage": f"已抽取 {len(frames)} 帧，等待模型回答", "frames": frames})
             option, raw = answer_once(client, model, row["question_category"], row["question"], frames)
         except Exception as error:
             # 单题失败继续后续题；失败原因保留在 CSV，续跑时重新处理该题。
@@ -180,7 +169,7 @@ def main():
     parser.add_argument("--run-id", default=os.environ.get("RUN_ID"))
     parser.add_argument("--resume", action="store_true", default=os.environ.get("RUN_MODE") == "resume")
     parser.add_argument("--data-dir", type=Path, default=Path("dataset"))
-    parser.add_argument("--result-dir", type=Path, default=Path("result"))
+    parser.add_argument("--result-dir", type=Path, default=Path("result/uniform32"))
     args = parser.parse_args()
     run_id = safe_name(args.run_id or f"uniform32_{datetime.now():%Y%m%d_%H%M%S}")
     questions = pd.read_parquet(args.data_dir / "MCQ.parquet")
