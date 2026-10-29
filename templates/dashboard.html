@@ -46,6 +46,7 @@ video, canvas { width:100%; height:100%; object-fit:contain; display:block; }
 .verdict { margin-top:12px; padding:10px 12px; border-radius:6px; font-family:var(--mono); font-size:13px; background:#f8fafc; }
 .verdict.ok { color:var(--green); background:rgba(22,163,74,.09); }
 .verdict.bad { color:var(--red); background:rgba(220,38,38,.09); }
+.answer-status { margin-top:12px; color:var(--muted); font-size:13px; }
 .kv { display:grid; grid-template-columns:120px 1fr; gap:8px 12px; font-size:13px; }
 .kv label { color:var(--muted); }
 .kv span, .mono { font-family:var(--mono); }
@@ -509,7 +510,7 @@ function renderQA(d) {
     <div class="question-meta"><span class="badge">${esc(d.category || '-')}</span><span class="badge">${esc(d.video_id || '-')}</span><span class="badge">${esc(d.retrieval_strategy || strategyFromData(d) || '-')}</span></div>
     <div class="question-text">${esc(parsed.stem)}</div>
     <div class="options">${optionsHtml || '<div class="empty">未解析到选项</div>'}</div>
-    ${model ? `<div class="verdict ${isHit ? 'ok' : 'bad'}">模型选择 ${esc(model || '-')}，正确答案 ${esc(correct || '-')}，${isHit ? '本题回答正确' : '本题回答错误'}</div>` : '<div class="verdict">等待模型回答</div>'}
+    ${model ? `<div class="verdict ${isHit ? 'ok' : 'bad'}">模型选择 ${esc(model || '-')}，正确答案 ${esc(correct || '-')}，${isHit ? '本题回答正确' : '本题回答错误'}</div>` : '<p class="answer-status" role="status">等待模型回答</p>'}
   `;
 }
 
@@ -604,9 +605,15 @@ function parseQuestion(text) {
   const lines = String(text || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
   const options = [], stemParts = [];
   for (const line of lines) {
-    const m = line.match(/^([A-F])[\.\)]\s*(.+)$/i);
+    // 首项可能写成 "Choices: A. ..." 或 "Answer: A. ..."；不固定选项数量。
+    const content = line.replace(/^\*\*([^*]+)\*\*/, '$1')
+      .replace(/^(?:(?:choices?|choose|options?|answer)\s*[:：]\s*)+/i, '');
+    if (content === '"""') continue; // 少量题目带有多行字符串的外层引号。
+    if (!content) continue;
+    const m = content.match(/^([A-G])[\.\)]\s*(.+)$/i);
     if (m) options.push({ key: m[1].toUpperCase(), text: m[2] });
-    else stemParts.push(line.replace(/^question\s*[:：]?\s*/i, ''));
+    else if (options.length) options[options.length - 1].text += '\n' + content;
+    else stemParts.push(content.replace(/^question\s*[:：]?\s*/i, ''));
   }
   return { stem: stemParts.join('\n'), options };
 }
@@ -640,7 +647,7 @@ function inferStage(d) {
 }
 function getStrive(item) { return item.strive_summary?.STRIVE ?? item.strive?.STRIVE ?? null; }
 function normalizeOption(value) {
-  const m = String(value || '').trim().toUpperCase().match(/[A-F]/);
+  const m = String(value || '').trim().toUpperCase().match(/\b([A-G])\b/);
   return m ? m[0] : '';
 }
 function listText(value) { return Array.isArray(value) && value.length ? value.slice(0,8).map(x => esc(x)).join(', ') : '-'; }

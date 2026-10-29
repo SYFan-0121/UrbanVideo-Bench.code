@@ -27,14 +27,14 @@ QUESTION_CATEGORIES = [
 
 
 def extract_option_letter(text):
-    """Extract A-F from model output such as 'Option: [B]'."""
+    """Extract A-G from model output such as 'Option: [G]'."""
     if not isinstance(text, str):
         return None
 
     patterns = [
-        r"Option\s*:\s*\[?\s*([A-Fa-f])\s*\]?",
-        r"\[\s*([A-Fa-f])\s*\]",
-        r"\b([A-Fa-f])\b",
+        r"Option\s*:\s*\[?\s*([A-Ga-g])\s*\]?",
+        r"\[\s*([A-Ga-g])\s*\]",
+        r"\b([A-Ga-g])\b",
     ]
     for pattern in patterns:
         match = re.search(pattern, text)

@@ -23,7 +23,7 @@ import base64
 import hashlib
 from collections import Counter
 from openai import OpenAI
-from prompts import build_prompt
+from prompts import build_prompt, detect_num_options
 from vlm_api import vlm_chat_completion
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -143,19 +143,19 @@ def get_sampling_variants(start_ratio: float, end_ratio: float, qa_category: str
 # ────────────────────────────────────────────────────────────
 # 3. 从模型回答中提取选项字母
 # ────────────────────────────────────────────────────────────
-# 从模型回复中提取 A-F 选项。
+# 从模型回复中提取 A-G 选项。
 # 模型输出格式不稳定，所以这里兼容多种写法。
 def extract_option(text: str) -> str | None:
     """
-    从模型输出中提取选项字母（A-F）。
+    从模型输出中提取选项字母（A-G）。
     支持格式：'Option: [A]' / 'Option: A' / 单独字母行
     """
     # 优先匹配标准格式
-    m = re.search(r'Option\s*:\s*\[?\s*([A-Fa-f])\s*\]?', text, re.IGNORECASE)
+    m = re.search(r'Option\s*:\s*\[?\s*([A-Ga-g])\s*\]?', text, re.IGNORECASE)
     if m:
         return m.group(1).upper()
     # 退化匹配：独立字母
-    m = re.search(r'\b([A-Fa-f])\b', text)
+    m = re.search(r'\b([A-Ga-g])\b', text)
     if m:
         return m.group(1).upper()
     return None
@@ -199,7 +199,7 @@ def compute_strive(
         votes:        K 次采样各自提取出的答案字母列表，e.g. ['A', 'A', 'B']
         self_scores:  K 次采样各自的模型自评分（已归一化），e.g. [0.75, 1.0, 0.5]
         qa_category:  问题类别
-        num_options:  选项总数（A-E=5，A-F=6，A-C=3）
+        num_options:  题目实际选项总数（当前题库为 2–7）
         alpha:        V×M 项指数，控制一致性的惩罚强度
         beta:         熵项指数，控制分布集中度的惩罚强度
 
@@ -637,25 +637,6 @@ def confident_answer(
             break
 
     return best_answer, best_strive, best_breakdown, retry_count, best_frames
-
-
-# ────────────────────────────────────────────────────────────
-# 7. 选项数量检测（适配 A-C / A-E / A-F 混合数据集）
-# ────────────────────────────────────────────────────────────
-def detect_num_options(question: str) -> int:
-    """
-    从题干文本中粗略判断选项数量。
-
-    返回:
-        6: 题干包含 F 选项。
-        3: 没有检测到 D 选项，按 A-C 处理。
-        5: 默认 A-E。
-    """
-    if re.search(r'\bF\b\s*[.。]', question) or 'F.' in question:
-        return 6
-    if not re.search(r'\bD\b\s*[.。]', question) and not 'D.' in question:
-        return 3
-    return 5
 
 
 # ────────────────────────────────────────────────────────────

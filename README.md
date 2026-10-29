@@ -30,6 +30,8 @@ The current inference code reads provider configuration from environment variabl
 
 Use a distinct `RUN_ID` for every baseline or ablation. This keeps CSV, dashboard SQLite, and evaluation outputs separate while the Git commit records the exact code version.
 
+The current research branch routes all 16 categories through Agentic retrieval. Set `AGENTIC_GLOBAL_MODE=strive` for Agentic + STRIVE or `AGENTIC_GLOBAL_MODE=no_vote` for Agentic retrieval with one final answer. Both use 32 base frames per answer. The fixed 12-category and 16-category versions are documented in [`deployment/CODE_VERSIONS.md`](deployment/CODE_VERSIONS.md).
+
 ## News
 🎉 Accepted as an oral presentation at ACL 2025!
 

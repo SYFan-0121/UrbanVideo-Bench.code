@@ -7,6 +7,8 @@
 #      prompt = build_prompt(qa_category, qa)
 # ============================================================
 
+import re
+
 # ────────────────────────────────────────────────────────────
 # 通用前缀（所有类别共用）
 # ────────────────────────────────────────────────────────────
@@ -18,30 +20,12 @@ BASE_PREFIX = (
 )
 
 # ────────────────────────────────────────────────────────────
-# 通用后缀（动态：根据选项数量自适应 A-E 或 A-F）
+# 通用后缀：由题目中的实际选项决定字母范围，不按类别猜测。
 # ────────────────────────────────────────────────────────────
-SUFFIX_AtoE = (
+ANSWER_SUFFIX = (
     "\n\nAnswer format (strictly follow — no extra text allowed):\n"
     "Option: []\n"
-    "Fill in exactly ONE letter from A to E inside the brackets.\n\n"
-    "Confidence: []\n"
-    "Rate your confidence in this answer on a scale of 1 to 5 (1 = very uncertain, 5 = very certain).\n"
-    "Fill in exactly ONE number inside the brackets."
-)
-
-SUFFIX_AtoF = (
-    "\n\nAnswer format (strictly follow — no extra text allowed):\n"
-    "Option: []\n"
-    "Fill in exactly ONE letter from A to F inside the brackets.\n\n"
-    "Confidence: []\n"
-    "Rate your confidence in this answer on a scale of 1 to 5 (1 = very uncertain, 5 = very certain).\n"
-    "Fill in exactly ONE number inside the brackets."
-)
-
-SUFFIX_AtoC = (
-    "\n\nAnswer format (strictly follow — no extra text allowed):\n"
-    "Option: []\n"
-    "Fill in exactly ONE letter from A to C inside the brackets.\n\n"
+    "Fill in exactly ONE letter from A to {last_option} inside the brackets.\n\n"
     "Confidence: []\n"
     "Rate your confidence in this answer on a scale of 1 to 5 (1 = very uncertain, 5 = very certain).\n"
     "Fill in exactly ONE number inside the brackets."
@@ -54,7 +38,7 @@ CATEGORY_PROMPTS = {
 
     # ── 1. Action Generation ─────────────────────────────────
     # 最大类别（1183题）。给定导航目标，判断无人机的下一步动作。
-    # 选项为 A-F（6选1），原代码的 A-E 后缀在此类别中是错误的。
+    # 题库中此类别可有 A-G 七个选项，范围由题目文本决定。
     "Action Generation": (
         "CONTEXT: You are a drone navigating toward a specified destination. "
         "You have been given a navigation goal at the start of the video.\n\n"
@@ -521,15 +505,6 @@ CATEGORY_PROMPTS = {
 }
 
 # ────────────────────────────────────────────────────────────
-# 后缀路由表（根据类别自动选择正确的选项范围）
-# ────────────────────────────────────────────────────────────
-SUFFIX_MAP = {
-    "Action Generation":    SUFFIX_AtoF,   # 6选1 (A-F)
-    "Proximity":            SUFFIX_AtoC,   # 3选1 (A-C)
-}
-# 其他所有类别默认使用 A-E (5选1)
-
-# ────────────────────────────────────────────────────────────
 # 兜底提示（未收录类别时使用）
 # ────────────────────────────────────────────────────────────
 DEFAULT_HINT = (
@@ -541,19 +516,28 @@ DEFAULT_HINT = (
 # ────────────────────────────────────────────────────────────
 # 主函数：根据类别构建完整 Prompt
 # ────────────────────────────────────────────────────────────
+def detect_num_options(question: str) -> int:
+    """读取实际选项标签；无选项的旧调用沿用默认五选一。"""
+    letters = re.findall(
+        r"^\s*(?:(?:choices?|choose|options?|answer)\s*[:：]\s*)*([A-G])[.)]\s",
+        question, re.MULTILINE | re.IGNORECASE,
+    )
+    return max((ord(letter.upper()) - ord('A') + 1 for letter in letters), default=5)
+
+
 def build_prompt(qa_category: str, question: str) -> str:
     """
     根据问题类别构建完整的 Prompt。
 
     Args:
         qa_category : 问题类别字符串，与数据集中 question_category 列一致
-        question    : 原始问题内容（含选项 A-F）
+        question    : 原始问题内容（含题目实际选项，最高到 G）
 
     Returns:
         完整的 prompt 字符串，可直接用于 API 调用
     """
     category_hint = CATEGORY_PROMPTS.get(qa_category, DEFAULT_HINT)
-    suffix = SUFFIX_MAP.get(qa_category, SUFFIX_AtoE)
+    suffix = ANSWER_SUFFIX.format(last_option=chr(ord('A') + detect_num_options(question) - 1))
 
     prompt = (
         BASE_PREFIX

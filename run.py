@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 run.py
-主评测入口：读取 UrbanVideo-Bench 的 MCQ 数据集，按问题类别选择抽帧策略，
+主评测入口：读取 UrbanVideo-Bench 的 MCQ 数据集，统一使用 Agentic 检索抽帧，
 调用视觉大模型回答问题，并把答案、STRIVE 置信度和 Agentic 检索元信息写入结果文件。
 
 核心流程：
 1. 读取 dataset/MCQ.parquet 和 dataset/videos 下的视频。
-2. 根据 question_category 选择抽帧算法：
-   - 非 Agentic 类别：全局 / 尾段 / 动态定位 + STRIVE。
-   - Agentic 类别：Agentic 检索抽帧，可选择 no_vote 或 strive。
+2. 全部 16 类统一使用 Agentic 检索，按全局模式选择 no_vote 或 strive。
 3. 调用 VLM 获取答案。
 4. 写入 result/{model}_output.csv，并向 dashboard 推送实时状态。
 """
@@ -37,6 +35,8 @@ from vlm_api import create_vlm_client, vlm_chat_completion
 import requests
 
 DASHBOARD_UPDATE_URL = os.environ.get("DASHBOARD_UPDATE_URL", "http://127.0.0.1:5000/update")
+# 每次最终回答的基础帧预算；STRIVE 重试时仍可按原有规则增加到 48/64 帧。
+BASE_N_FRAMES = 32
 
 
 def to_jsonable(value):
@@ -395,8 +395,7 @@ def answer_once_with_frames(client, model, qa_category, question, frames):
 # 单题处理的总调度函数。
 # 一道题从读取视频、选择抽帧策略、调用模型、计算置信度、写 CSV、推送前端都在这里串起来。
 def process_one(qa_idx, res, res_path, folder_path, model, client,
-                GLOBAL_CATEGORIES, TAIL_CATEGORIES, BASELINE_GLOBAL_CATEGORIES,
-                AGENTIC_RETRIEVAL_CATEGORIES, AGENTIC_GLOBAL_MODE,
+                AGENTIC_GLOBAL_MODE,
                 RUN_ID,
                 _lock, _fatal_event,
                 _total_processed_ref, _correct_count_ref):
@@ -405,7 +404,7 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
 
     主要职责：
     1. 读取题目、视频路径和正确答案。
-    2. 根据 qa_category 选择初始抽帧策略。
+    2. 根据全局模式选择 Agentic 单次回答或 Agentic STRIVE。
     3. 调用 Agentic 检索、STRIVE 投票或单次 VLM 回答。
     4. 记录答案、置信度、检索元信息和全局进度。
 
@@ -477,36 +476,9 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
             log_progress(qa_idx, f"Sampling uniform frames: window=[{s:.2f}, {e:.2f}], n={n}")
             return sample_frames_by_ratio_from_path(video_path, total_frames, s, e, n)
 
-        # 1) Agentic 类别：默认全视频作为检索范围，具体证据帧由 agentic_retrieval.py 规划和召回。
-        # Agentic 会先找证据帧，再把选出的帧交给模型回答。
-        if qa_category in AGENTIC_RETRIEVAL_CATEGORIES:
-            start_ratio, end_ratio = 0.0, 1.0
-            initial_strategy = f"agentic_retrieval_{AGENTIC_GLOBAL_MODE}"
-        # 2) 基线全局类别：只做一次全局均匀抽帧，不走 STRIVE 投票。
-        # 它们不进入 STRIVE 投票，速度快但没有置信度诊断。
-        elif qa_category in BASELINE_GLOBAL_CATEGORIES:
-            start_ratio, end_ratio = 0.0, 1.0
-            initial_strategy = "global_uniform_32_no_vote"
-        # 3) 全局 STRIVE 类别：每轮在全视频窗口上产生 K=3 个扰动采样。
-        # 初始窗口覆盖 0% 到 100%，再交给 STRIVE 做三次扰动投票。
-        elif qa_category in GLOBAL_CATEGORIES:
-            start_ratio, end_ratio = 0.0, 1.0
-            initial_strategy = "global"
-        # 4) 尾段 STRIVE 类别：先验认为答案多在视频后 40%。
-        # 初始窗口只看 60% 到 100%，减少早期无关帧。
-        elif qa_category in TAIL_CATEGORIES:
-            start_ratio, end_ratio = 0.6, 1.0
-            initial_strategy = "tail"
-        # 5) 动态类别：先用 Stage1 找相关时间窗，再在该窗口内 STRIVE 投票。
-        else:
-            initial_strategy = "dynamic"
-            log_progress(qa_idx, "Dynamic category: sampling 8 overview frames for Stage1 temporal location...")
-            overview_frames = safe_sample_func(None, total_frames, 0.0, 1.0, n=8)
-            start_ratio, end_ratio = stage1_locate(client, model, qa, overview_frames)
-            if qa_category in ('Causal', 'Counterfactual'):
-                start_ratio = max(0.0, start_ratio - 0.15)
-                end_ratio   = min(1.0, end_ratio   + 0.15)
-                log_progress(qa_idx, f"Expanded causal/counterfactual window to [{start_ratio:.2f}, {end_ratio:.2f}]")
+        # 全部类别从全视频范围进入 Agentic，类别差异由检索计划处理。
+        start_ratio, end_ratio = 0.0, 1.0
+        initial_strategy = f"agentic_retrieval_{AGENTIC_GLOBAL_MODE}"
 
         num_opts = detect_num_options(qa)
         log_progress(
@@ -530,14 +502,14 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
 
         # Agentic no_vote：只检索一次证据帧，然后只调用一次 VLM；速度快但没有 STRIVE 置信度。
         # 适合快速测试，但没有 STRIVE 分数。
-        if qa_category in AGENTIC_RETRIEVAL_CATEGORIES and AGENTIC_GLOBAL_MODE == "no_vote":
+        if AGENTIC_GLOBAL_MODE == "no_vote":
             log_progress(qa_idx, "Agentic no-vote mode: start retrieval-based frame extraction.")
             emit_stage("Agentic 正在规划、构建候选池并做语义召回", retrieval_strategy=initial_strategy)
             final_frames, retrieval_meta = sample_frames_agentic_retrieval(
                 video_path=video_path,
                 question=qa,
                 qa_category=qa_category,
-                n_frames=32,
+                n_frames=BASE_N_FRAMES,
                 client=client,
                 model=model,
                 variant_id=0,
@@ -565,7 +537,7 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
             retry_count = 0
         # Agentic strive：复用同一个 AgenticRetrievalContext，让 K=3 投票共享候选池和语义召回。
         # 三次投票共享同一个检索上下文，但使用不同窗口和 variant_id。
-        elif qa_category in AGENTIC_RETRIEVAL_CATEGORIES and AGENTIC_GLOBAL_MODE == "strive":
+        else:  # strive；合法模式已在程序入口统一校验。
             log_progress(qa_idx, "Agentic STRIVE mode: start shared retrieval context and K=3 confidence voting.")
             emit_stage("Agentic STRIVE 正在初始化共享检索上下文", retrieval_strategy=initial_strategy)
             retrieval_metas = []
@@ -615,7 +587,7 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
                     video=None, total_frames=total_frames,
                     qa_category=qa_category, question=qa,
                     start_ratio=0.0, end_ratio=1.0,
-                    num_options=num_opts, K=3, n_frames=32,
+                    num_options=num_opts, K=3, n_frames=BASE_N_FRAMES,
                     high_threshold=0.70, low_threshold=0.40, max_retries=2,
                     sample_func=agentic_sample_func,
                     initial_strategy=initial_strategy,
@@ -631,42 +603,6 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
                 "variants": retrieval_metas,
             }
             breakdown["retrieval"] = retrieval_meta
-        # 基线 no_vote：用于不希望走置信度投票的类别。
-        # 它们不进入 STRIVE 投票，速度快但没有置信度诊断。
-        elif qa_category in BASELINE_GLOBAL_CATEGORIES:
-            log_progress(qa_idx, "Baseline no-vote category: full-video uniform 32-frame sampling, single model call.")
-            emit_stage("正在全视频均匀抽帧", retrieval_strategy=initial_strategy)
-            final_answer, final_frames, _raw_output = answer_once_global_uniform(
-                client=client, model=model,
-                video_path=video_path, total_frames=total_frames,
-                qa_category=qa_category, question=qa,
-                n_frames=32,
-            )
-            strive_score = None
-            breakdown = {
-                "strategy": initial_strategy,
-                "votes": [final_answer],
-            }
-            retry_count = 0
-        # 其它非 Agentic 策略统一交给 confident_answer 做 K=3 投票和自适应重试。
-        else:
-            log_progress(qa_idx, "Non-Agentic STRIVE mode: start uniform-window K=3 confidence voting.")
-            emit_stage("STRIVE 正在抽帧并准备 K=3 投票", retrieval_strategy=initial_strategy)
-            final_answer, strive_score, breakdown, retry_count, final_frames = confident_answer(
-                client=client, model=model,
-                video=None, total_frames=total_frames,
-                qa_category=qa_category, question=qa,
-                start_ratio=start_ratio, end_ratio=end_ratio,
-                num_options=num_opts, K=3, n_frames=32,
-                high_threshold=0.70, low_threshold=0.40, max_retries=2,
-                sample_func=safe_sample_func,
-                initial_strategy=initial_strategy,
-                stage1_locate_func=stage1_locate,
-                stage1_locate_corrective_func=stage1_locate_corrective,
-                emit_to_dashboard_func=emit_to_dashboard,
-                dashboard_payload=dashboard_payload,
-                qa_idx=qa_idx,
-            )
 
         res_str = f"Option: [{final_answer}]"
         is_correct = None
@@ -781,65 +717,6 @@ if __name__ == '__main__':
     # )
     # 推荐切回方式：设置 VLM_PROVIDER=qwen，可选 QWEN_MODEL=qwen-vl-max-latest。
 
-    # GLOBAL_CATEGORIES：答案通常需要看完整视频，初始窗口为 [0.0, 1.0]。
-    # 全局类：答案依赖整段视频路线、起终点或完整过程。
-    GLOBAL_CATEGORIES = {
-        'Trajectory Captioning',
-        'Start/End Position',
-        'Duration',
-        'Sequence Recall',
-        'Cognitive Map',
-        'Landmark Position',
-        'Association Reasoning',
-        'Object Recall',
-        'High-level Planning',
-    }
-    # TAIL_CATEGORIES：答案通常集中在视频后段，初始窗口为 [0.6, 1.0]。
-    # 尾段类：答案更依赖视频最后状态或完成进度。
-    TAIL_CATEGORIES = {
-        'Goal Detection',
-        'Progress Evaluation',
-    }
-    # BASELINE_GLOBAL_CATEGORIES：保留单次全局均匀抽帧基线，不做 STRIVE。
-    # 基线类：保留原始一次性全局抽帧，不做多票置信判断。
-    BASELINE_GLOBAL_CATEGORIES = {
-        'Association Reasoning',
-        'Action Generation',
-        'Scene Recall',
-        'High-level Planning',
-        'Cognitive Map',
-    }
-    ALL_QUESTION_CATEGORIES = {
-        'Action Generation',
-        'Association Reasoning',
-        'Causal',
-        'Cognitive Map',
-        'Counterfactual',
-        'Duration',
-        'Goal Detection',
-        'High-level Planning',
-        'Landmark Position',
-        'Object Recall',
-        'Progress Evaluation',
-        'Proximity',
-        'Scene Recall',
-        'Sequence Recall',
-        'Start/End Position',
-        'Trajectory Captioning',
-    }
-    # NON_AGENTIC_CATEGORIES：这 4 类按原始规则走 global/tail/dynamic + STRIVE，不走 Agentic 召回。
-    # 这四类不走 Agentic。
-    # 它们按原来的 global/tail/dynamic + STRIVE 策略处理。
-    NON_AGENTIC_CATEGORIES = {
-        'Start/End Position',
-        'Proximity',
-        'Goal Detection',
-        'Landmark Position',
-    }
-    # 除 NON_AGENTIC_CATEGORIES 外，其余类别都进入 Agentic 召回。
-    # 这样可以保留四个特殊类别的原始策略，又让复杂类别获得更强证据检索能力。
-    AGENTIC_RETRIEVAL_CATEGORIES = ALL_QUESTION_CATEGORIES - NON_AGENTIC_CATEGORIES
-
     folder_path = 'dataset/videos'
     QA_df = pd.read_parquet('dataset/MCQ.parquet')
 
@@ -856,6 +733,7 @@ if __name__ == '__main__':
     print("=" * 72)
     print(f"RUN_ID: {RUN_ID}")
     print(f"RUN_MODE: {RUN_MODE}")
+    print(f"Agentic mode: {AGENTIC_GLOBAL_MODE}; all 16 categories; base frames per answer: {BASE_N_FRAMES}")
     print(f"Result CSV: {res_path}")
     print(f"Dashboard SQLite: result/dashboard_{RUN_ID}.sqlite3")
     print(f"Dashboard update URL: {DASHBOARD_UPDATE_URL}")
@@ -900,7 +778,7 @@ if __name__ == '__main__':
                 ~res['Output'].astype(str).str.contains(r'\[None\]', na=False)]
         _total_processed = len(done)
         _correct_count = (
-            done['Output'].str.extract(r'\[([A-F])\]')[0].str.upper() ==
+            done['Output'].str.extract(r'\[([A-G])\]')[0].str.upper() ==
             done['answer'].astype(str).str.upper()
         ).sum()
     else:
@@ -918,8 +796,7 @@ if __name__ == '__main__':
         futures = {
             executor.submit(
                 process_one, qa_idx, res, res_path, folder_path, model, client,
-                GLOBAL_CATEGORIES, TAIL_CATEGORIES, BASELINE_GLOBAL_CATEGORIES,
-                AGENTIC_RETRIEVAL_CATEGORIES, AGENTIC_GLOBAL_MODE,
+                AGENTIC_GLOBAL_MODE,
                 RUN_ID,
                 _lock, _fatal_event,
                 _total_processed_ref, _correct_count_ref
