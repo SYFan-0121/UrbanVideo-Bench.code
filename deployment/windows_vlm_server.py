@@ -1,4 +1,4 @@
-"""Small OpenAI-compatible Qwen2.5-VL server for native Windows."""
+"""加载本地 Qwen2.5-VL 并提供 OpenAI 兼容多图推理接口。"""
 
 from __future__ import annotations
 
