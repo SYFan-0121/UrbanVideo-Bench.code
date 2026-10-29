@@ -30,7 +30,7 @@ The benchmark is designed to evaluate whether video-large language models (Video
 | `deployment/` | 共用的数据准备和 VLM 模型服务工具 | — | — |
 
 先进入对应实验文件夹，再运行脚本、看板或评估。两套目录各自包含依赖清单、Prompt、模型接口、评估、看板和测试，不跨目录导入。
-服务器 `agentic/dataset` 与 `uniform32/dataset` 都联接到仓库根目录的 `dataset/`，不复制视频。建立联接的方法见 [服务器流程](deployment/SERVER_FULL_RUN.md)。
+服务器 `agentic/dataset` 与 `uniform32/dataset` 中的题库、视频均通过硬链接共享仓库根目录的 `dataset/`，不复制视频。建立联接的方法见 [服务器流程](deployment/SERVER_FULL_RUN.md)。
 `agentic/run.py` 保持指定提交 `9f0b9cdb324bdc62ad3b46b632d46c73c9bb09dd` 的原始字节；均匀基准不导入 Agentic/STRIVE。
 
 服务器使用固定导入路径的便携式 Python，统一通过各自的 `launch.py` 启动。启动器只调整当前进程的工作目录和导入路径，不修改共享 Python 环境。
@@ -60,6 +60,7 @@ GitHub 文件列表右侧显示的是该路径最近一次提交的说明。本�
 | [`uniform32/answers.py`](uniform32/answers.py) | 独立提取 A–G 答案，不导入 STRIVE |
 | [`uniform32/requirements.txt`](uniform32/requirements.txt) | 均匀基准客户端、数据与看板依赖 |
 | [`agentic/requirements.txt`](agentic/requirements.txt) | Agentic 客户端、数据、CLIP 与看板依赖 |
+| [`deployment/prepare_experiment_data.ps1`](deployment/prepare_experiment_data.ps1) | 建立两套实验共用的 NTFS 数据硬链接，不复制视频 |
 | [`deployment/CODE_VERSIONS.md`](deployment/CODE_VERSIONS.md) | 记录分支用途、固定实验标签、版本差异与验证结果 |
 | [`deployment/SERVER_FULL_RUN.md`](deployment/SERVER_FULL_RUN.md) | 说明服务器端数据准备、模型启动、完整评测与结果评估流程 |
 | [`deployment/WINDOWS_NATIVE_DEPLOYMENT.md`](deployment/WINDOWS_NATIVE_DEPLOYMENT.md) | 说明 Windows 原生 VLM 环境、SSH 隧道与模型服务部署 |

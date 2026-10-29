@@ -15,11 +15,11 @@ D:\VLM\syf\
 │   │   ├── MCQ.parquet
 │   │   └── videos\*.mp4
 │   ├── agentic\                   # Agentic 代码与独立结果
-│   │   ├── dataset\              # 指向 ..\dataset 的目录联接
+│   │   ├── dataset\              # 文件硬链接共享 ..\dataset 的内容
 │   │   ├── cache\                # Agentic 检索缓存，不提交 Git
 │   │   └── result\               # Agentic 结果和看板，不提交 Git
 │   ├── uniform32\                 # 均匀基准代码与独立结果
-│   │   ├── dataset\              # 指向 ..\dataset 的目录联接
+│   │   ├── dataset\              # 文件硬链接共享 ..\dataset 的内容
 │   │   └── result\               # 均匀结果和看板，不提交 Git
 │   └── deployment\
 └── logs\                         # 服务日志
@@ -139,15 +139,10 @@ Invoke-RestMethod http://127.0.0.1:8000/health | ConvertTo-Json -Depth 5
 
 第二个 SSH 窗口进入 Agentic 文件夹。数据准备工具和模型服务留在仓库根目录；Agentic 与均匀基准各自在自己的目录中运行和保存结果：
 
-数据集下载完成后，为两个代码目录建立指向同一份题库和视频的目录联接，不复制视频：
+数据集下载完成后，为两个代码目录建立指向同一份题库和视频的文件硬链接，不复制视频：
 
 ```powershell
-foreach ($Name in @('agentic', 'uniform32')) {
-  $Link = Join-Path (Join-Path 'D:\VLM\syf\UrbanVideo-Bench.code' $Name) 'dataset'
-  if (-not (Test-Path -LiteralPath $Link)) {
-    New-Item -ItemType Junction -Path $Link -Target 'D:\VLM\syf\UrbanVideo-Bench.code\dataset' | Out-Null
-  }
-}
+& ([scriptblock]::Create((Get-Content .\deployment\prepare_experiment_data.ps1 -Raw)))
 ```
 
 ```powershell

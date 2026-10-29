@@ -28,7 +28,7 @@
 - 服务器部署校验记录：`D:\VLM\syf\code-backups\agentic-uniform32-deployed.json`。
 
 - `agentic/` 与 `uniform32/` 分别保存完整实验入口、依赖、看板、评估和测试；进入对应目录后运行，结果分别保存在各自的 `result/`。
-- 两套代码共享仓库根目录数据集和模型服务。服务器以 `agentic/dataset`、`uniform32/dataset` 目录联接引用同一份 `../dataset`，不复制视频。
+- 两套代码共享仓库根目录数据集和模型服务。服务器在 `agentic/dataset`、`uniform32/dataset` 中以文件硬链接引用同一份 `../dataset`，不复制视频。
 - 均匀基准另含精简 `answers.py`，仅解析 A–G，不导入 Agentic/STRIVE 实现。
 
 ## 旧版：12 类 Agentic 检索 + 4 类原始 STRIVE
