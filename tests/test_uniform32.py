@@ -1,6 +1,7 @@
-"""检查独立均匀基准的帧采样、输入一致性与失败题续跑。"""
+"""检查无水印均匀基准的长短视频采样、单次回答与失败题续跑。"""
 
 from contextlib import redirect_stdout
+import base64
 import io
 import json
 from pathlib import Path
@@ -12,16 +13,16 @@ import cv2
 import numpy as np
 import pandas as pd
 
-import run
 import run_uniform32 as baseline
 
 
 class Uniform32Tests(unittest.TestCase):
-    def test_sampling_matches_existing_baseline_inputs_and_releases_video(self):
+    def test_sampling_preserves_raw_images_without_watermark(self):
         video = Mock()
         video.isOpened.return_value = True
         video.get.side_effect = lambda prop: 120 if prop == cv2.CAP_PROP_FRAME_COUNT else 24.0
-        video.read.return_value = (True, np.zeros((400, 600, 3), dtype=np.uint8))
+        original = np.zeros((400, 600, 3), dtype=np.uint8)
+        video.read.return_value = (True, original)
         with patch.object(baseline.cv2, "VideoCapture", return_value=video):
             frames, metadata = baseline.sample_uniform32("sample.mp4")
         expected_indices = [int(i * (119 / 31)) for i in range(32)]
@@ -29,11 +30,27 @@ class Uniform32Tests(unittest.TestCase):
         self.assertEqual(len(frames), 32)
         self.assertEqual(video.read.call_count, 32)
         video.release.assert_called_once()
-        expected = run.sample_frames_by_ratio(video, 120, 0.0, 1.0, 32)
-        self.assertEqual(frames, expected)
+        _, jpeg = cv2.imencode(".jpg", original)
+        self.assertEqual(frames, [base64.b64encode(jpeg).decode("utf-8")] * 32)
+        self.assertFalse(metadata["watermark"])
 
-    def test_short_or_undecodable_video_does_not_produce_partial_budget(self):
-        for total, success in [(31, True), (120, False)]:
+    def test_short_videos_use_every_frame_including_single_frame(self):
+        for total in (1, 17, 31, 32):
+            with self.subTest(total=total):
+                video = Mock()
+                video.isOpened.return_value = True
+                video.get.return_value = total
+                original = np.zeros((10, 10, 3), dtype=np.uint8)
+                video.read.return_value = (True, original)
+                with patch.object(baseline.cv2, "VideoCapture", return_value=video):
+                    frames, metadata = baseline.sample_uniform32("short.mp4")
+                self.assertEqual(len(frames), total)
+                self.assertEqual(metadata["selected_indices"], list(range(total)))
+                self.assertEqual(video.read.call_count, total)
+                video.release.assert_called_once()
+
+    def test_empty_or_undecodable_video_reports_decode_failure(self):
+        for total, success in [(0, True), (120, False)]:
             with self.subTest(total=total, success=success):
                 video = Mock()
                 video.isOpened.return_value = True
@@ -74,19 +91,21 @@ class Uniform32Tests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 baseline.load_results(questions, path, True, "another-run")
 
-    def test_answer_uses_project_prompt_and_one_model_call(self):
+    def test_answer_uploads_all_selected_long_and_short_video_frames_once(self):
         response = Mock()
         response.choices = [Mock()]
         response.choices[0].message.content = "Option: [G]\nConfidence: [5]"
         question = "Where?\nChoices: " + "\n".join(f"{letter}. Place" for letter in "ABCDEFG")
-        with patch.object(baseline, "vlm_chat_completion", return_value=response) as api:
-            option, raw = baseline.answer_once(Mock(), "model", "Object Recall", question, ["frame"] * 32)
-        self.assertEqual(option, "G")
-        self.assertIn("[G]", raw)
-        api.assert_called_once()
-        content = api.call_args.kwargs["messages"][0]["content"]
-        self.assertEqual(len(content), 33)
-        self.assertIn("ONE letter from A to G", content[0]["text"])
+        for count in (1, 17, 32):
+            with self.subTest(count=count):
+                with patch.object(baseline, "vlm_chat_completion", return_value=response) as api:
+                    option, raw = baseline.answer_once(Mock(), "model", "Object Recall", question, ["frame"] * count)
+                self.assertEqual(option, "G")
+                self.assertIn("[G]", raw)
+                api.assert_called_once()
+                content = api.call_args.kwargs["messages"][0]["content"]
+                self.assertEqual(len(content), count + 1)
+                self.assertIn("ONE letter from A to G", content[0]["text"])
 
 
 if __name__ == "__main__":
