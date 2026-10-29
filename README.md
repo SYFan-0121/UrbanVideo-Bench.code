@@ -33,7 +33,7 @@ GitHub 文件列表右侧显示的是该路径最近一次提交的说明。本�
 | [`confidence.py`](confidence.py) | STRIVE 多次投票、置信度计算与低置信度自适应重试 |
 | [`eval.py`](eval.py) | 提取预测答案、统计总体及分类准确率并导出 Excel 报告 |
 | [`prompts.py`](prompts.py) | 按 16 类生成问答提示，并根据实际选项确定答案范围 |
-| [`run.py`](run.py) | 执行 16 类 Agentic 评测、抽帧、断点续跑与结果保存 |
+| [`run.py`](run.py) | 执行均匀 32 帧基准或 16 类 Agentic 评测、断点续跑与结果保存 |
 | [`server.py`](server.py) | 提供实时进度接口、Socket.IO 推送、SQLite 历史查询与视频回看 |
 | [`video_locks.py`](video_locks.py) | 按视频路径共享线程锁，协调同一视频的并发解码 |
 | [`vlm_api.py`](vlm_api.py) | 统一 MiMo、Qwen 与 OpenAI 兼容服务的请求及参数适配 |
@@ -67,7 +67,7 @@ The current inference code reads provider configuration from environment variabl
 
 Use a distinct `RUN_ID` for every baseline or ablation. This keeps CSV, dashboard SQLite, and evaluation outputs separate while the Git commit records the exact code version.
 
-The current `main` branch routes all 16 categories through Agentic retrieval. Set `AGENTIC_GLOBAL_MODE=strive` for Agentic + STRIVE or `AGENTIC_GLOBAL_MODE=no_vote` for Agentic retrieval with one final answer. Both use 32 base frames per answer. The fixed 12-category and 16-category versions are documented in [`deployment/CODE_VERSIONS.md`](deployment/CODE_VERSIONS.md).
+Set `FRAME_SAMPLING=uniform` for the full-video uniform 32-frame baseline: one answer call per question, with the same category prompts and model settings as Agentic. Set `FRAME_SAMPLING=agentic` (the default) for all 16 categories to use Agentic retrieval, then choose `AGENTIC_GLOBAL_MODE=strive` or `AGENTIC_GLOBAL_MODE=no_vote`. All modes use 32 base frames per answer. The fixed versions are documented in [`deployment/CODE_VERSIONS.md`](deployment/CODE_VERSIONS.md).
 
 ## News
 🎉 Accepted as an oral presentation at ACL 2025!
