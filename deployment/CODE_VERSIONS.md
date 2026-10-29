@@ -10,6 +10,15 @@
 - 两个已发布实验标签保持原有提交。本次整理只补充功能注释与文档，不改变模型推理行为。
 - GitHub 文件列表的说明来自最近一次提交；逐文件功能索引见 [README](../README.md#文件功能索引)。
 
+## 均匀 32 帧基准（2026-10-29）
+
+- 固定标签：`uniform32-baseline-20261029`，维护分支继续使用 `main`。
+- `FRAME_SAMPLING=uniform`：全部 16 类从完整视频首帧到尾帧等间隔抽取 32 帧，按时间排序并保留原时间戳水印；每题仅执行一次回答调用。
+- 复用现有类别 Prompt、模型接口和答案提取；跳过 Agentic 规划、CLIP、VLM 重排、Stage1 定位及 STRIVE 投票。固定帧预算不足时记为失败，不使用较少帧数回答。
+- CSV 策略名为 `uniform_32_no_vote`；记录实际帧数与完整视频窗口，STRIVE 分数为空。
+- `FRAME_SAMPLING=agentic` 是默认值，原有 Agentic 的两种模式保持原行为。实验之间切换抽帧策略或投票模式时使用不同 RUN_ID。
+- 回归覆盖全部 16 类均匀基准、帧数不足、原有两种 Agentic 模式与 A–G 选项识别。
+
 ## 旧版：12 类 Agentic 检索 + 4 类原始 STRIVE
 
 - 归档分支：`codex/archive-agentic-12class`。
