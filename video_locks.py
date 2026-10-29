@@ -1,3 +1,5 @@
+"""按视频路径共享线程锁，协调同一视频的并发解码。"""
+
 import os
 import threading
 
