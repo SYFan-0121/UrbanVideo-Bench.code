@@ -1,3 +1,8 @@
+<#
+.SYNOPSIS
+筛选 Hugging Face 未提供的本地视频并通过 SSH 上传。
+#>
+
 param(
     [Parameter(Mandatory = $true)]
     [string]$ServerIp,
