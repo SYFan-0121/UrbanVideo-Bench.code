@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-UrbanVideo-Bench 实时可视化服务。
+"""提供实时进度接口、Socket.IO 推送、SQLite 历史查询与视频回看。
 
 设计要点：
 1. 已完成题目写入 SQLite，不再启动时把全部历史读入内存。
