@@ -1,4 +1,4 @@
-"""Merge manually transferred MP4s without overwriting dataset files."""
+"""校验补充视频的 SHA256 并合并入库，保留冲突文件记录。"""
 
 from __future__ import annotations
 
