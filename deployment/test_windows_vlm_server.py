@@ -1,4 +1,4 @@
-"""HTTP/adapter checks using a fake generator; no model download or GPU needed.
+"""使用模拟生成器检查 VLM 服务接口、并发与请求适配。
 
 Run from the repository root: python -m unittest deployment.test_windows_vlm_server -v
 """
