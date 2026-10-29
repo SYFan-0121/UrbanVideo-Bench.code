@@ -1,4 +1,4 @@
-"""Verify the local dataset against MCQ.parquet and report missing videos."""
+"""对照题库统计视频覆盖率并导出缺失视频清单。"""
 
 from __future__ import annotations
 
