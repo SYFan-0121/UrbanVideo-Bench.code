@@ -33,7 +33,8 @@ GitHub 文件列表右侧显示的是该路径最近一次提交的说明。本�
 | [`confidence.py`](confidence.py) | STRIVE 多次投票、置信度计算与低置信度自适应重试 |
 | [`eval.py`](eval.py) | 提取预测答案、统计总体及分类准确率并导出 Excel 报告 |
 | [`prompts.py`](prompts.py) | 按 16 类生成问答提示，并根据实际选项确定答案范围 |
-| [`run.py`](run.py) | 执行均匀 32 帧基准或 16 类 Agentic 评测、断点续跑与结果保存 |
+| [`run.py`](run.py) | 执行 16 类 Agentic 评测、抽帧、断点续跑与结果保存 |
+| [`run_uniform32.py`](run_uniform32.py) | 独立执行均匀 32 帧单次回答基准，逐题保存原始输出并支持续跑 |
 | [`server.py`](server.py) | 提供实时进度接口、Socket.IO 推送、SQLite 历史查询与视频回看 |
 | [`video_locks.py`](video_locks.py) | 按视频路径共享线程锁，协调同一视频的并发解码 |
 | [`vlm_api.py`](vlm_api.py) | 统一 MiMo、Qwen 与 OpenAI 兼容服务的请求及参数适配 |
@@ -56,6 +57,7 @@ GitHub 文件列表右侧显示的是该路径最近一次提交的说明。本�
 | [`tests/dashboard.test.cjs`](tests/dashboard.test.cjs) | 回归检查题目选项解析、等待状态与答案高亮 |
 | [`tests/test_agentic_modes.py`](tests/test_agentic_modes.py) | 检查全部 16 类的两种 Agentic 模式、32 帧预算与结果保存 |
 | [`tests/test_question_options.py`](tests/test_question_options.py) | 检查 2–7 项题目的提示范围、答案提取与 G 选项评估 |
+| [`tests/test_uniform32.py`](tests/test_uniform32.py) | 检查独立均匀基准的采样一致性、模型调用与失败题续跑 |
 
 ## 研究服务器使用
 
@@ -67,7 +69,17 @@ The current inference code reads provider configuration from environment variabl
 
 Use a distinct `RUN_ID` for every baseline or ablation. This keeps CSV, dashboard SQLite, and evaluation outputs separate while the Git commit records the exact code version.
 
-Set `FRAME_SAMPLING=uniform` for the full-video uniform 32-frame baseline: one answer call per question, with the same category prompts and model settings as Agentic. Set `FRAME_SAMPLING=agentic` (the default) for all 16 categories to use Agentic retrieval, then choose `AGENTIC_GLOBAL_MODE=strive` or `AGENTIC_GLOBAL_MODE=no_vote`. All modes use 32 base frames per answer. The fixed versions are documented in [`deployment/CODE_VERSIONS.md`](deployment/CODE_VERSIONS.md).
+Use `python run.py` for Agentic experiments: all 16 categories use Agentic retrieval, with `AGENTIC_GLOBAL_MODE=strive` or `AGENTIC_GLOBAL_MODE=no_vote`. This file is restored exactly from commit `9f0b9cdb324bdc62ad3b46b632d46c73c9bb09dd`.
+
+Use the separate `run_uniform32.py` for the full-video uniform 32-frame baseline. It adapts the supplied `latest_model_32frame_benchmark_test.py`: serial question processing, one answer call, per-question CSV saves and resume. It decodes only the 32 selected frames, uses the project prompts and A–G option handling, and reads API configuration from the environment. It does not import or modify `run.py`. Original responses are saved in `RawOutput`; failed questions remain eligible for resume.
+
+```powershell
+python run_uniform32.py --run-id qwen25vl7b_uniform32_baseline
+# Resume this baseline; the model and input configuration must remain the same.
+python run_uniform32.py --run-id qwen25vl7b_uniform32_baseline --resume
+```
+
+All modes use 32 base frames per answer. Fixed versions are documented in [`deployment/CODE_VERSIONS.md`](deployment/CODE_VERSIONS.md).
 
 ## News
 🎉 Accepted as an oral presentation at ACL 2025!
