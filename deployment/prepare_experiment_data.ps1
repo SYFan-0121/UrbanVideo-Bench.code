@@ -1,6 +1,6 @@
 param([string]$RepoRoot = (Split-Path -Parent $PSScriptRoot))
 
-# NTFS 硬链接共享数据字节，兼容 SSH 账户禁止遍历目录联接的服务器策略。
+# NTFS hard links share file data when SSH policy blocks directory junctions.
 $ErrorActionPreference = 'Stop'
 $RepoRoot = [IO.Path]::GetFullPath($RepoRoot)
 $source = Join-Path $RepoRoot 'dataset'
@@ -14,10 +14,10 @@ $files += $videos
 
 foreach ($name in @('agentic', 'uniform32')) {
     $destination = Join-Path (Join-Path $RepoRoot $name) 'dataset'
-    $item = Get-Item -LiteralPath $destination -Force -ErrorAction SilentlyContinue
+    $item = Get-ChildItem -LiteralPath (Join-Path $RepoRoot $name) -Force | Where-Object { $_.Name -eq 'dataset' }
     if ($item -and $item.LinkType -eq 'Junction') {
         if ($item.Target.Count -ne 1 -or [IO.Path]::GetFullPath($item.Target[0]) -ne $source) { throw "Unexpected dataset junction: $destination" }
-        # 只删除目录联接本身，不递归访问或删除源数据。
+        # Remove only the junction itself; never traverse or delete source data.
         [IO.Directory]::Delete($destination)
     }
     New-Item -ItemType Directory -Force (Join-Path $destination 'videos') | Out-Null
