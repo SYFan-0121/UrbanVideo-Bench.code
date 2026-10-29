@@ -1,3 +1,5 @@
+"""结合视频与移动指令生成路线导航选择题。"""
+
 import time
 import os
 import re
