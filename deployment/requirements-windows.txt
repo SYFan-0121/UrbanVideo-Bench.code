@@ -1,3 +1,5 @@
+# 功能：声明 Windows 本地 Qwen2.5-VL 推理服务依赖。
+
 # Candidate installation family for Python 3.10/3.11 on native Windows.
 # The cu126 wheel uses the NVIDIA driver; a separate CUDA Toolkit is normally
 # unnecessary for inference.
