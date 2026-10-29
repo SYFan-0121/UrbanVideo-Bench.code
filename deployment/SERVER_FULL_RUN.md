@@ -11,11 +11,16 @@ D:\VLM\syf\
 ├── python311\                    # syf 的便携式 Python
 ├── hf-cache\                     # Hugging Face 模型缓存
 ├── UrbanVideo-Bench.code\        # Git 工作副本
-│   ├── dataset\                  # Hugging Face 全量数据，不提交 Git
+│   ├── dataset\                  # 两个实验共用的数据集，不提交 Git
 │   │   ├── MCQ.parquet
 │   │   └── videos\*.mp4
-│   ├── cache\agentic_retrieval\  # 抽帧/候选帧/检索缓存，不提交 Git
-│   ├── result\                   # CSV、SQLite、评估表，不提交 Git
+│   ├── agentic\                   # Agentic 代码与独立结果
+│   │   ├── dataset\              # 指向 ..\dataset 的目录联接
+│   │   ├── cache\                # Agentic 检索缓存，不提交 Git
+│   │   └── result\               # Agentic 结果和看板，不提交 Git
+│   ├── uniform32\                 # 均匀基准代码与独立结果
+│   │   ├── dataset\              # 指向 ..\dataset 的目录联接
+│   │   └── result\               # 均匀结果和看板，不提交 Git
 │   └── deployment\
 └── logs\                         # 服务日志
 ```
@@ -35,7 +40,7 @@ D:\VLM\syf\
 ```powershell
 git switch -c codex/server-full-run
 git remote add research git@github.com:<你的GitHub用户名>/<你的仓库名>.git
-git add .gitignore run.py eval.py prompts.py confidence.py agentic_retrieval.py video_locks.py vlm_api.py server.py templates deployment
+git add .gitignore README.md agentic uniform32 deployment
 git status --short
 git diff --cached --stat
 git commit -m "Prepare native Windows server experiments"
@@ -59,10 +64,12 @@ cd D:\VLM\syf\UrbanVideo-Bench.code
 ```powershell
 $PythonHome = 'D:\VLM\syf\python311'
 $env:PIP_CACHE_DIR = 'D:\VLM\syf\pip-cache'
-& "$PythonHome\python.exe" -m pip install -r .\deployment\requirements-benchmark-windows.txt
+$Experiment = 'agentic' # 均匀基准改为 uniform32
+& "$PythonHome\python.exe" -m pip install -r ".\$Experiment\requirements.txt"
+& "$PythonHome\python.exe" -m pip install -r .\deployment\requirements-windows.txt
 ```
 
-这会在服务器安装 OpenCV、pandas、pyarrow、Hugging Face Hub 和 `sentence-transformers`。CLIP 模型第一次使用时会下载到 `HF_HOME` 指定的缓存目录。
+安装对应实验依赖和共用模型服务依赖。两份实验依赖互相独立；只安装当前需要运行的那一份。CLIP 模型第一次使用时会下载到 `HF_HOME` 指定的缓存目录。
 
 ## 3. 下载并验证全量数据
 
@@ -130,10 +137,21 @@ Invoke-RestMethod http://127.0.0.1:8000/health | ConvertTo-Json -Depth 5
 
 ## 5. 在服务器端运行 CLIP、抽帧和 benchmark
 
-第二个 SSH 窗口切到仓库根目录。`run.py` 会在服务器上用 OpenCV 读取视频并抽帧；Agentic 类别会在服务器上用 CLIP 语义召回，缓存写入 `cache/agentic_retrieval`：
+第二个 SSH 窗口进入 Agentic 文件夹。数据准备工具和模型服务留在仓库根目录；Agentic 与均匀基准各自在自己的目录中运行和保存结果：
+
+数据集下载完成后，为两个代码目录建立指向同一份题库和视频的目录联接，不复制视频：
 
 ```powershell
-cd D:\VLM\syf\UrbanVideo-Bench.code
+foreach ($Name in @('agentic', 'uniform32')) {
+  $Link = Join-Path (Join-Path 'D:\VLM\syf\UrbanVideo-Bench.code' $Name) 'dataset'
+  if (-not (Test-Path -LiteralPath $Link)) {
+    New-Item -ItemType Junction -Path $Link -Target 'D:\VLM\syf\UrbanVideo-Bench.code\dataset' | Out-Null
+  }
+}
+```
+
+```powershell
+cd D:\VLM\syf\UrbanVideo-Bench.code\agentic
 $env:HF_HOME = 'D:\VLM\syf\hf-cache'
 $env:HUGGINGFACE_HUB_CACHE = 'D:\VLM\syf\hf-cache\hub'
 $env:VLM_PROVIDER = 'qwen'
@@ -151,7 +169,7 @@ $env:RUN_MODE = 'new'
 & "$PythonHome\python.exe" .\run.py
 ```
 
-结果会留在服务器的 `result/`，包括结果 CSV、dashboard 数据库和 `eval.py` 生成的评估表。改变模型、帧数、分辨率、Agentic 开关或提示词时使用新的 `RUN_ID`，不要覆盖已有实验。当前 `run.py` 默认运行 Agentic 检索策略；它不是纯均匀抽帧基线，论文里应按实际策略命名。基线和消融应使用明确独立的参数/分支与 `RUN_ID`。
+Agentic 的 CSV、看板数据库和评估表分别保存在 `agentic\result\`。均匀基准需进入 `uniform32` 目录运行 `run_uniform32.py`，其结果独立保存在 `uniform32\result\`。改变模型、帧数、分辨率、Agentic 开关或提示词时使用新的 `RUN_ID`，不要覆盖已有实验。当前 `run.py` 默认运行 Agentic 检索策略；它不是纯均匀抽帧基线，论文里应按实际策略命名。基线和消融应使用明确独立的参数/分支与 `RUN_ID`。
 
 评估：
 
@@ -167,4 +185,4 @@ git rev-parse HEAD | Set-Content .\result\git_commit.txt
 nvidia-smi | Set-Content .\result\nvidia-smi.txt
 ```
 
-`result/` 被 Git 忽略，但文件仍会保存在服务器；建议另行备份到实验存储或用 Git LFS/Release 管理小型结果表。
+`agentic/result/` 与 `uniform32/result/` 均被 Git 忽略，但文件仍会保存在服务器；建议另行备份到实验存储或用 Git LFS/Release 管理小型结果表。
