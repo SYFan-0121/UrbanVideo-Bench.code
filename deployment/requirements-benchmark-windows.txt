@@ -1,3 +1,5 @@
+# 功能：声明完整评测、CLIP 检索、数据处理与看板依赖。
+
 # Full server environment: VLM service plus UrbanVideo-Bench inference/CLIP.
 -r requirements-windows.txt
 
