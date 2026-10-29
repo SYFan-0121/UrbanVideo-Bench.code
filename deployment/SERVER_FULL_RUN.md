@@ -142,7 +142,7 @@ Invoke-RestMethod http://127.0.0.1:8000/health | ConvertTo-Json -Depth 5
 数据集下载完成后，为两个代码目录建立指向同一份题库和视频的文件硬链接，不复制视频：
 
 ```powershell
-& ([scriptblock]::Create((Get-Content .\deployment\prepare_experiment_data.ps1 -Raw)))
+& ([scriptblock]::Create((Get-Content .\deployment\prepare_experiment_data.ps1 -Raw -Encoding UTF8))) -RepoRoot (Get-Location).Path
 ```
 
 ```powershell
