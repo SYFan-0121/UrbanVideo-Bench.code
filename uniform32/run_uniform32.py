@@ -17,7 +17,7 @@ import cv2
 import pandas as pd
 import requests
 
-from confidence import extract_option
+from answers import extract_option
 from prompts import build_prompt
 from vlm_api import create_vlm_client, vlm_chat_completion
 
@@ -169,7 +169,7 @@ def main():
     parser.add_argument("--run-id", default=os.environ.get("RUN_ID"))
     parser.add_argument("--resume", action="store_true", default=os.environ.get("RUN_MODE") == "resume")
     parser.add_argument("--data-dir", type=Path, default=Path("dataset"))
-    parser.add_argument("--result-dir", type=Path, default=Path("result/uniform32"))
+    parser.add_argument("--result-dir", type=Path, default=Path("result"))
     args = parser.parse_args()
     run_id = safe_name(args.run_id or f"uniform32_{datetime.now():%Y%m%d_%H%M%S}")
     questions = pd.read_parquet(args.data_dir / "MCQ.parquet")
