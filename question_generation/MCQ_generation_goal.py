@@ -1,3 +1,5 @@
+"""结合视频与目标地点生成目标导航选择题。"""
+
 import time
 import os
 import re
