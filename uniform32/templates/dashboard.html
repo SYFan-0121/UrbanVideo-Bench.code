@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<!-- 功能：展示实验队列、题目选项、证据帧、答案与历史结果。 -->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UrbanVideo-Bench Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+:root {
+  --bg:#f6f8fb; --panel:#fff; --line:#dbe3ee; --line2:#c4cfdd;
+  --text:#162033; --muted:#68778d; --blue:#2563eb; --cyan:#0891b2;
+  --green:#16a34a; --red:#dc2626; --amber:#d97706; --violet:#7c3aed; --pink:#db2777;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC","Microsoft YaHei",sans-serif;
+}
+body { background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; overflow:hidden; }
+.app { display:grid; grid-template-rows:56px 1fr; height:100vh; }
+.topbar { display:flex; align-items:center; gap:18px; padding:0 18px; background:var(--panel); border-bottom:1px solid var(--line); }
+.brand { font-family:var(--mono); font-weight:900; letter-spacing:.08em; color:var(--blue); white-space:nowrap; }
+.stat { display:grid; gap:2px; min-width:76px; }
+.stat label { color:var(--muted); font-size:11px; }
+.stat b { font-family:var(--mono); font-size:15px; }
+.status { margin-left:auto; display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; }
+.dot { width:8px; height:8px; border-radius:50%; background:var(--line2); }
+.dot.live { background:var(--green); box-shadow:0 0 0 4px rgba(22,163,74,.12); }
+.layout { display:grid; grid-template-columns:minmax(360px,1.1fr) minmax(390px,1.2fr) minmax(380px,1fr); gap:1px; background:var(--line); min-height:0; }
+.col { background:var(--bg); min-width:0; min-height:0; overflow:auto; }
+.section { background:var(--panel); border-bottom:1px solid var(--line); }
+.section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border-bottom:1px solid var(--line); }
+.section-title { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; font-weight:800; letter-spacing:.08em; }
+.mark { width:7px; height:7px; border-radius:50%; background:var(--blue); }
+.badge, .chip { font-family:var(--mono); font-size:11px; color:#334155; background:#eef2f7; border:1px solid var(--line); border-radius:4px; padding:3px 7px; }
+.section-body { padding:14px; min-width:0; }
+.video-wrap { height:280px; background:#05070b; border:1px solid #111827; display:flex; align-items:center; justify-content:center; color:#94a3b8; }
+video, canvas { width:100%; height:100%; object-fit:contain; display:block; }
+.question-meta, .chips { display:flex; gap:6px; flex-wrap:wrap; }
+.question-text { margin-top:10px; line-height:1.7; white-space:pre-wrap; }
+.options { display:grid; gap:7px; margin-top:12px; }
+.option { display:grid; grid-template-columns:24px 1fr; gap:8px; padding:8px 10px; border:1px solid var(--line); border-radius:6px; line-height:1.5; }
+.option .key { font-family:var(--mono); font-weight:900; }
+.option.correct { border-color:rgba(22,163,74,.45); background:rgba(22,163,74,.08); }
+.option.model-wrong { border-color:rgba(220,38,38,.45); background:rgba(220,38,38,.08); }
+.option.model-only { border-color:rgba(217,119,6,.45); background:rgba(217,119,6,.08); }
+.verdict { margin-top:12px; padding:10px 12px; border-radius:6px; font-family:var(--mono); font-size:13px; background:#f8fafc; }
+.verdict.ok { color:var(--green); background:rgba(22,163,74,.09); }
+.verdict.bad { color:var(--red); background:rgba(220,38,38,.09); }
+.answer-status { margin-top:12px; color:var(--muted); font-size:13px; }
+.kv { display:grid; grid-template-columns:120px 1fr; gap:8px 12px; font-size:13px; }
+.kv label { color:var(--muted); }
+.kv span, .mono { font-family:var(--mono); }
+.timeline { display:grid; gap:10px; }
+.step { display:grid; grid-template-columns:22px 1fr; gap:10px; align-items:start; }
+.step-dot { width:22px; height:22px; border-radius:50%; display:grid; place-items:center; color:#fff; font-size:12px; font-family:var(--mono); background:var(--line2); }
+.step.done .step-dot { background:var(--green); }
+.step.active .step-dot { background:var(--blue); }
+.step h3 { margin:0 0 3px; font-size:13px; }
+.step p { margin:0; color:var(--muted); font-size:12px; line-height:1.5; }
+.dim-grid { display:grid; gap:11px; }
+.dim { display:grid; gap:6px; }
+.dim-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+.dim-name { font-weight:800; font-size:13px; }
+.dim-value { font-family:var(--mono); font-weight:900; }
+.dim-desc { color:var(--muted); font-size:12px; }
+.bar { height:7px; background:#e7edf5; border-radius:999px; overflow:hidden; }
+.bar > i { display:block; height:100%; border-radius:999px; }
+.score-box { margin-top:14px; border:1px solid var(--line); background:#f8fafc; border-radius:8px; padding:14px; }
+.score-main { font-family:var(--mono); font-size:34px; line-height:1; font-weight:900; }
+.score-formula { margin-top:8px; color:var(--muted); font-family:var(--mono); font-size:11px; line-height:1.7; }
+.frames { display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:7px; }
+.frame { aspect-ratio:16/9; border:1px solid var(--line); overflow:hidden; position:relative; background:#0f172a; }
+.frame img { width:100%; height:100%; object-fit:cover; display:block; }
+.frame span { position:absolute; left:4px; bottom:4px; font-family:var(--mono); font-size:10px; color:#fff; background:rgba(0,0,0,.55); padding:1px 4px; }
+.filters { display:grid; grid-template-columns:1fr 118px 88px; gap:8px; margin-bottom:10px; }
+input, select, button { height:32px; border:1px solid var(--line2); border-radius:6px; background:#fff; color:var(--text); padding:0 9px; font:inherit; }
+button { background:var(--blue); border-color:var(--blue); color:#fff; cursor:pointer; }
+button:disabled { background:var(--line2); border-color:var(--line2); cursor:not-allowed; }
+.list { display:grid; gap:7px; min-width:0; overflow-x:hidden; }
+.row { border:1px solid var(--line); background:#fff; border-radius:7px; padding:9px; cursor:pointer; min-width:0; max-width:100%; overflow:hidden; }
+.row:hover { border-color:var(--blue); }
+.row.active { border-color:var(--blue); box-shadow:inset 3px 0 0 var(--blue); }
+.row-top { display:flex; justify-content:space-between; gap:8px; margin-bottom:5px; min-width:0; }
+.row-title { font-weight:800; font-size:13px; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.row-sub { color:var(--muted); font-size:12px; max-width:100%; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+.pager { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:10px; }
+.empty { display:grid; place-items:center; min-height:96px; color:var(--muted); font-size:13px; }
+@media (max-width:1180px) { body{overflow:auto}.app{height:auto;min-height:100vh}.layout{grid-template-columns:1fr}.col{overflow:visible} }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">UrbanVideo-Bench</div>
+    <div class="stat" style="min-width:170px"><label>RUN_ID</label><select id="run-select" style="height:26px"></select></div>
+    <div class="stat"><label>当前题号</label><b id="top-idx">-</b></div>
+    <div class="stat"><label>已回答</label><b id="top-done">0</b></div>
+    <div class="stat"><label>正确数</label><b id="top-correct">0</b></div>
+    <div class="stat"><label>正确率</label><b id="top-acc">0.0%</b></div>
+    <div class="stat"><label>当前算法</label><b id="top-strategy" style="font-size:12px">-</b></div>
+    <div class="status"><span class="dot" id="dot"></span><span id="status">等待连接</span></div>
+  </header>
+
+  <main class="layout">
+    <div class="col">
+      <section class="section">
+        <div class="section-head"><div class="section-title"><span class="mark"></span>视频</div><span class="badge" id="video-badge">-</span></div>
+        <div class="section-body">
+          <div class="video-wrap"><span id="video-empty">等待视频数据</span><video id="video" controls preload="metadata" style="display:none"></video><canvas id="preview" style="display:none"></canvas></div>
+        </div>
+      </section>
+      <section class="section">
+        <div class="section-head"><div class="section-title"><span class="mark" style="background:var(--green)"></span>题目与答案</div><span class="badge" id="qa-badge">#-</span></div>
+        <div class="section-body" id="qa-body"><div class="empty">等待题目数据</div></div>
+      </section>
+      <section class="section">
+        <div class="section-head"><div class="section-title"><span class="mark" style="background:var(--amber)"></span>本次抽帧</div><span class="badge" id="frames-badge">0 帧</span></div>
+        <div class="section-body" id="frames-body"><div class="empty">运行中题目会显示当前送入模型的帧；历史记录不保存 base64 帧</div></div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="section">
+        <div class="section-head"><div class="section-title"><span class="mark" style="background:var(--cyan)"></span>Agentic + 召回工作流</div><span class="badge" id="agentic-badge">-</span></div>
+        <div class="section-body" id="agentic-body"><div class="empty">等待 Agentic 检索数据</div></div>
+      </section>
+      <section class="section">
+        <div class="section-head"><div class="section-title"><span class="mark" style="background:var(--red)"></span>STRIVE 五维置信度</div><span class="badge" id="strive-badge">重试 0</span></div>
+        <div class="section-body" id="strive-body"><div class="empty">等待 STRIVE 数据</div></div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="section">
+        <div class="section-head"><div class="section-title"><span class="mark" style="background:var(--blue)"></span>运行队列</div><span class="badge" id="active-count">0 个</span></div>
+        <div class="section-body"><div class="list" id="active-list"><div class="empty">暂无正在运行的题目</div></div></div>
+      </section>
+      <section class="section">
+        <div class="section-head"><div class="section-title"><span class="mark" style="background:var(--green)"></span>最新完成</div><span class="badge" id="latest-badge">-</span></div>
+        <div class="section-body"><div id="latest-completed"><div class="empty">暂无完成题目</div></div></div>
+      </section>
+      <section class="section">
+        <div class="section-head"><div class="section-title"><span class="mark" style="background:var(--violet)"></span>历史分页</div><span class="badge" id="history-count">0 条</span></div>
+        <div class="section-body">
+          <div class="filters">
+            <input id="history-q" placeholder="搜索题号/视频/题目">
+            <select id="history-category"><option value="">全部类别</option></select>
+            <select id="history-correct"><option value="">全部</option><option value="true">正确</option><option value="false">错误</option></select>
+          </div>
+          <div class="list" id="history-list"></div>
+          <div class="pager"><button id="prev-page">上一页</button><span class="mono" id="page-info">1 / 1</span><button id="next-page">下一页</button></div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+const socket = io();
+let liveData = {};
+let latestCompleted = {};
+let currentRunId = '';
+let availableRuns = [];
+let selectedMode = 'live';
+let selectedId = null;
+let activeQueue = [];
+let historyPage = 1;
+let historyTotalPages = 1;
+let historyItems = [];
+let slideshowTimer = null;
+
+socket.on('connect', () => {
+  document.getElementById('dot').className = 'dot live';
+  setText('status', '实时连接');
+});
+socket.on('disconnect', () => {
+  document.getElementById('dot').className = 'dot';
+  setText('status', '连接断开');
+});
+socket.on('state_update', data => {
+  if (data.run_id && data.run_id !== currentRunId && (!currentRunId || currentRunId === 'default' || !availableRuns.some(run => run.run_id === currentRunId))) {
+    currentRunId = data.run_id;
+    const select = document.getElementById('run-select');
+    if (select && Array.from(select.options).some(option => option.value === currentRunId)) select.value = currentRunId;
+  }
+  if (data.run_id && data.run_id !== currentRunId) return;
+  liveData = data || {};
+  if (selectedMode === 'live') renderAll(liveData, 'live');
+});
+socket.on('active_queue_update', data => {
+  if (data.run_id && data.run_id !== currentRunId) return;
+  activeQueue = data.active || [];
+  renderActiveQueue();
+});
+socket.on('completed_update', item => {
+  if (item.run_id && item.run_id !== currentRunId) return;
+  latestCompleted = item || {};
+  renderLatestCompleted();
+});
+socket.on('history_initial', data => {
+  updateRunSelector(data.runs || [], data.run_id);
+  loadRunState(currentRunId);
+  loadHistory(1);
+});
+socket.on('history_item_added', item => {
+  if (!item.run_id || item.run_id === currentRunId) loadHistory(historyPage);
+});
+socket.on('runs_update', data => {
+  const previous = currentRunId;
+  updateRunSelector(data.runs || [], currentRunId);
+  if (currentRunId !== previous) {
+    selectedMode = 'live';
+    selectedId = null;
+    loadRunState(currentRunId);
+    loadHistory(1);
+  }
+});
+
+fetch('/runs').then(r => r.json()).then(data => {
+  updateRunSelector(data.runs || [], data.default_run_id);
+  currentRunId = document.getElementById('run-select').value || data.default_run_id || 'default';
+  loadRunState(currentRunId);
+  loadHistory(1);
+}).catch(() => {
+  currentRunId = currentRunId || 'default';
+  loadRunState(currentRunId);
+  loadHistory(1);
+});
+
+document.getElementById('run-select').addEventListener('change', e => {
+  currentRunId = e.target.value || 'default';
+  selectedMode = 'live';
+  selectedId = null;
+  loadRunState(currentRunId);
+  loadHistory(1);
+});
+document.getElementById('history-q').addEventListener('input', debounce(() => loadHistory(1), 250));
+document.getElementById('history-category').addEventListener('change', () => loadHistory(1));
+document.getElementById('history-correct').addEventListener('change', () => loadHistory(1));
+document.getElementById('prev-page').addEventListener('click', () => loadHistory(Math.max(1, historyPage - 1)));
+document.getElementById('next-page').addEventListener('click', () => loadHistory(Math.min(historyTotalPages, historyPage + 1)));
+
+function loadHistory(page) {
+  const requestedRunId = currentRunId || 'default';
+  const params = new URLSearchParams({
+    run_id: requestedRunId,
+    page, per_page: 20,
+    q: document.getElementById('history-q').value || '',
+    category: document.getElementById('history-category').value || '',
+    correct: document.getElementById('history-correct').value || '',
+  });
+  fetch('/history?' + params.toString()).then(r => r.json()).then(data => {
+    if (requestedRunId !== currentRunId) return;
+    historyPage = data.page || 1;
+    historyTotalPages = data.total_pages || 1;
+    historyItems = data.history || [];
+    renderCategoryOptions(data.categories || []);
+    renderHistory(data);
+  });
+}
+
+function loadRunState(runId) {
+  const requestedRunId = runId || 'default';
+  fetch('/state?run_id=' + encodeURIComponent(requestedRunId)).then(r => r.json()).then(data => {
+    if (requestedRunId !== currentRunId) return;
+    updateRunSelector(data.runs || availableRuns, requestedRunId);
+    liveData = data.latest_state || {};
+    latestCompleted = data.latest_completed || {};
+    activeQueue = data.active_queue || [];
+    renderActiveQueue();
+    renderLatestCompleted();
+    if (Object.keys(liveData).length) renderAll(liveData, 'live');
+    else renderAll({}, 'live');
+  }).catch(() => {});
+}
+
+function updateRunSelector(runs, preferredRunId) {
+  if (!runs || !runs.length) runs = [{ run_id: currentRunId || 'default', history_total: 0, active_count: 0 }];
+  availableRuns = runs;
+  const select = document.getElementById('run-select');
+  const selectedRunId = chooseRunId(runs, preferredRunId || select.value || currentRunId);
+  select.innerHTML = runs.map(run => {
+    const label = `${run.run_id} (${run.history_total || 0}/${run.active_count || 0})`;
+    return `<option value="${escapeAttr(run.run_id)}">${esc(label)}</option>`;
+  }).join('');
+  if (runs.some(run => run.run_id === selectedRunId)) select.value = selectedRunId;
+  else select.value = runs[0].run_id;
+  currentRunId = select.value || currentRunId || 'default';
+}
+
+function chooseRunId(runs, preferredRunId) {
+  const byId = new Map(runs.map(run => [run.run_id, run]));
+  if (preferredRunId && preferredRunId !== 'default' && byId.has(preferredRunId)) return preferredRunId;
+  if (currentRunId && currentRunId !== 'default' && byId.has(currentRunId)) return currentRunId;
+  const defaultRun = byId.get('default');
+  if (preferredRunId === 'default' && defaultRun && (Number(defaultRun.history_total) > 0 || Number(defaultRun.active_count) > 0)) return 'default';
+  const active = runs.find(run => run.run_id !== 'default' && Number(run.active_count) > 0);
+  if (active) return active.run_id;
+  const historyRuns = runs
+    .filter(run => run.run_id !== 'default' && Number(run.history_total) > 0)
+    .sort((a, b) => Number(b.history_total) - Number(a.history_total));
+  if (historyRuns.length) return historyRuns[0].run_id;
+  if (preferredRunId && byId.has(preferredRunId)) return preferredRunId;
+  if (currentRunId && byId.has(currentRunId)) return currentRunId;
+  return runs[0]?.run_id || 'default';
+}
+
+function renderCategoryOptions(categories) {
+  const select = document.getElementById('history-category');
+  const current = select.value;
+  select.innerHTML = '<option value="">全部类别</option>' + categories.map(c => `<option value="${escapeAttr(c)}">${esc(c)}</option>`).join('');
+  select.value = current;
+}
+
+function renderActiveQueue() {
+  setText('active-count', `${activeQueue.length} 个`);
+  const list = document.getElementById('active-list');
+  if (!activeQueue.length) {
+    list.innerHTML = '<div class="empty">暂无正在运行的题目</div>';
+    return;
+  }
+  list.innerHTML = activeQueue.map(item => `
+    <div class="row ${selectedMode === 'active' && selectedId === Number(item.qa_idx) ? 'active' : ''}" data-id="${item.qa_idx}">
+      <div class="row-top"><div class="row-title">#${item.qa_idx} ${esc(item.category || '')}</div><span class="mono">${esc(item.stage || '')}</span></div>
+      <div class="row-sub">${esc(item.video_id || '')}</div>
+      <div class="chips"><span class="chip">${esc(item.retrieval_strategy || '-')}</span><span class="chip">${item.frame_count || 0} 帧</span><span class="chip">retry ${item.retry_count ?? 0}</span></div>
+    </div>`).join('');
+  list.querySelectorAll('.row').forEach(row => {
+    row.addEventListener('click', () => {
+      const id = Number(row.dataset.id);
+      fetch(`/active/${id}?run_id=${encodeURIComponent(currentRunId)}`).then(r => r.json()).then(item => {
+        selectedMode = 'active';
+        selectedId = id;
+        setText('status', `运行中 #${id}`);
+        renderAll(item, 'active');
+        renderActiveQueue();
+        renderHistory({ total: historyItems.length, all_total: historyItems.length });
+      });
+    });
+  });
+}
+
+function renderLatestCompleted() {
+  const box = document.getElementById('latest-completed');
+  if (!latestCompleted || !latestCompleted.qa_idx) {
+    box.innerHTML = '<div class="empty">暂无完成题目</div>';
+    setText('latest-badge', '-');
+    return;
+  }
+  setText('latest-badge', `#${latestCompleted.qa_idx}`);
+  const item = latestCompleted;
+  const score = getStrive(item);
+  box.innerHTML = `<div class="row" id="latest-row">
+    <div class="row-top"><div class="row-title">#${item.qa_idx} ${esc(item.category || '')}</div><span class="mono" style="color:${item.is_correct ? 'var(--green)' : 'var(--red)'}">${item.is_correct ? '正确' : '错误'}</span></div>
+    <div class="row-sub">${esc(item.video_id || '')}</div>
+    <div class="chips"><span class="chip">模型 ${esc(item.model_answer || '-')}</span><span class="chip">正确 ${esc(item.correct_answer || '-')}</span><span class="chip">STRIVE ${score == null ? 'N/A' : Number(score).toFixed(3)}</span></div>
+  </div>`;
+  document.getElementById('latest-row').addEventListener('click', () => {
+    selectedMode = 'latest';
+    selectedId = Number(item.qa_idx);
+    setText('status', `最新完成 #${item.qa_idx}`);
+    renderAll(item, 'history');
+  });
+}
+
+function renderHistory(data) {
+  setText('history-count', `${data.total || 0} / ${data.all_total || 0} 条`);
+  setText('page-info', `${historyPage} / ${historyTotalPages || 1}`);
+  document.getElementById('prev-page').disabled = historyPage <= 1;
+  document.getElementById('next-page').disabled = historyPage >= historyTotalPages;
+  const list = document.getElementById('history-list');
+  if (!historyItems.length) {
+    list.innerHTML = '<div class="empty">暂无匹配历史</div>';
+    return;
+  }
+  list.innerHTML = historyItems.map(item => {
+    const score = getStrive(item);
+    return `<div class="row ${selectedMode === 'history' && selectedId === Number(item.qa_idx) ? 'active' : ''}" data-id="${item.qa_idx}">
+      <div class="row-top"><div class="row-title">#${item.qa_idx} ${esc(item.category || '')}</div><span class="mono" style="color:${item.is_correct ? 'var(--green)' : 'var(--red)'}">${item.is_correct ? '正确' : '错误'}</span></div>
+      <div class="row-sub">${esc(item.video_id || '')}</div>
+      <div class="row-sub">${esc(item.question || '')}</div>
+      <div class="chips"><span class="chip">模型 ${esc(item.model_answer || '-')}</span><span class="chip">正确 ${esc(item.correct_answer || '-')}</span><span class="chip">STRIVE ${score == null ? 'N/A' : Number(score).toFixed(3)}</span></div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.row').forEach(row => {
+    row.addEventListener('click', () => {
+      const id = Number(row.dataset.id);
+      fetch(`/history/${id}?run_id=${encodeURIComponent(currentRunId)}`).then(r => r.json()).then(item => {
+        selectedMode = 'history';
+        selectedId = id;
+        setText('status', `历史 #${id}`);
+        renderAll(item, 'history');
+        renderHistory(data);
+      });
+    });
+  });
+}
+
+function renderAll(data, mode) {
+  updateTopbar(data, mode);
+  renderVideo(data);
+  renderQA(data);
+  renderFrames(data);
+  renderAgentic(data);
+  renderStrive(data);
+}
+
+function updateTopbar(d, mode) {
+  setText('top-idx', d.qa_idx == null ? '-' : `#${d.qa_idx}`);
+  setText('top-done', d.total_processed ?? '-');
+  setText('top-correct', d.correct_count ?? '-');
+  const acc = Number(d.accuracy);
+  setText('top-acc', Number.isFinite(acc) ? `${(acc * 100).toFixed(1)}%` : '-');
+  setText('top-strategy', d.retrieval_strategy || strategyFromData(d) || '-');
+  if (mode === 'live' || mode === 'active') setText('status', inferStage(d));
+}
+
+function renderVideo(d) {
+  setText('video-badge', d.video_id || '-');
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('preview');
+  const empty = document.getElementById('video-empty');
+  if (slideshowTimer) clearInterval(slideshowTimer);
+  slideshowTimer = null;
+  const videoParams = videoQueryParams(d);
+  const videoUrl = videoParams ? '/video?' + videoParams : '';
+  if (videoUrl) {
+    video.src = videoUrl;
+    video.style.display = 'block';
+    canvas.style.display = 'none';
+    empty.style.display = 'none';
+    video.load();
+    video.onerror = () => {
+      video.style.display = 'none';
+      empty.style.display = 'block';
+      empty.textContent = '视频加载失败，显示帧预览';
+      renderFramePreview(d.frames || []);
+      if (!(d.frames || []).length) loadVideoPreviewFrames(d);
+    };
+    return;
+  }
+  video.style.display = 'none';
+  renderFramePreview(d.frames || []);
+  if (!(d.frames || []).length) loadVideoPreviewFrames(d);
+}
+
+function videoQueryParams(d) {
+  const params = new URLSearchParams();
+  if (d.video_id) params.set('id', d.video_id);
+  if (d.video_path) params.set('path', d.video_path);
+  return params.toString();
+}
+
+function loadVideoPreviewFrames(d) {
+  const params = videoQueryParams(d);
+  if (!params) return;
+  fetch('/video_frames?' + params + '&limit=12')
+    .then(r => r.ok ? r.json() : Promise.reject(new Error(`preview ${r.status}`)))
+    .then(data => {
+      if (data.frames && data.frames.length) renderFramePreview(data.frames);
+    })
+    .catch(() => {});
+}
+
+function renderFramePreview(frames) {
+  const canvas = document.getElementById('preview');
+  const empty = document.getElementById('video-empty');
+  if (!frames.length) {
+    canvas.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  canvas.style.display = 'block';
+  const ctx = canvas.getContext('2d');
+  let idx = 0;
+  const draw = () => {
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      ctx.drawImage(img, 0, 0);
+    };
+    img.src = 'data:image/jpeg;base64,' + frames[idx];
+    idx = (idx + 1) % frames.length;
+  };
+  draw();
+  slideshowTimer = setInterval(draw, 350);
+}
+
+function renderQA(d) {
+  const body = document.getElementById('qa-body');
+  setText('qa-badge', d.qa_idx == null ? '#-' : `#${d.qa_idx}`);
+  if (!d.question) {
+    body.innerHTML = '<div class="empty">等待题目数据</div>';
+    return;
+  }
+  const parsed = parseQuestion(d.question);
+  const correct = normalizeOption(d.correct_answer);
+  const model = normalizeOption(d.model_answer);
+  const isHit = Boolean(correct && model && correct === model);
+  const optionsHtml = parsed.options.map(opt => {
+    let cls = '';
+    if (correct && opt.key === correct) cls += ' correct';
+    if (model && opt.key === model && model !== correct) cls += ' model-wrong';
+    if (model && opt.key === model && !correct) cls += ' model-only';
+    return `<div class="option${cls}"><span class="key">${esc(opt.key)}</span><span>${esc(opt.text)}</span></div>`;
+  }).join('');
+  body.innerHTML = `
+    <div class="question-meta"><span class="badge">${esc(d.category || '-')}</span><span class="badge">${esc(d.video_id || '-')}</span><span class="badge">${esc(d.retrieval_strategy || strategyFromData(d) || '-')}</span></div>
+    <div class="question-text">${esc(parsed.stem)}</div>
+    <div class="options">${optionsHtml || '<div class="empty">未解析到选项</div>'}</div>
+    ${model ? `<div class="verdict ${isHit ? 'ok' : 'bad'}">模型选择 ${esc(model || '-')}，正确答案 ${esc(correct || '-')}，${isHit ? '本题回答正确' : '本题回答错误'}</div>` : '<p class="answer-status" role="status">等待模型回答</p>'}
+  `;
+}
+
+function renderFrames(d) {
+  const frames = d.frames || [];
+  setText('frames-badge', `${frames.length} 帧`);
+  const body = document.getElementById('frames-body');
+  if (!frames.length) {
+    body.innerHTML = '<div class="empty">历史记录不保存 base64 帧；可通过视频和检索元信息回看</div>';
+    return;
+  }
+  body.innerHTML = `<div class="frames">${frames.map((b64, i) => `<div class="frame"><img loading="lazy" src="data:image/jpeg;base64,${b64}"><span>${i + 1}</span></div>`).join('')}</div>`;
+}
+
+function renderAgentic(d) {
+  const summary = d.retrieval_summary || d.strive_summary?.retrieval || null;
+  const strategy = d.retrieval_strategy || summary?.strategy || strategyFromData(d);
+  setText('agentic-badge', strategy || '-');
+  const body = document.getElementById('agentic-body');
+  const isAgentic = String(strategy || '').startsWith('agentic_retrieval');
+  if (!isAgentic && !summary) {
+    body.innerHTML = `<div class="timeline">${step(1, '类别路由', '该题未进入 Agentic 召回，按 global / tail / dynamic 原始策略抽帧。', 'done')}${step(2, '窗口采样', '使用当前时间窗口生成 STRIVE 的 K 个采样变体。', 'done')}${step(3, 'VLM 回答', d.model_answer ? '模型已返回答案。' : '等待模型返回答案。', d.model_answer ? 'done' : 'active')}</div>`;
+    return;
+  }
+  const plan = summary?.plan || {};
+  const semantic = summary?.semantic || {};
+  const rerank = summary?.rerank || {};
+  const selected = summary?.selected_indices || [];
+  const windowText = summary?.start_ratio != null ? `[${Number(summary.start_ratio).toFixed(2)}, ${Number(summary.end_ratio).toFixed(2)}]` : '-';
+  body.innerHTML = `
+    <div class="timeline">
+      ${step(1, 'Overview 规划', `8 张全局缩略图进入 Planner，temporal_focus=${plan.temporal_focus || '-'}`, plan.temporal_focus ? 'done' : 'active')}
+      ${step(2, '候选池构建', '构建 global、scene_change、anchors、tail 多路候选池，并复用 FrameCache。', 'done')}
+      ${step(3, '语义召回', `embedding backend=${semantic.backend || '-'}, enabled=${semantic.enabled === true}`, semantic.enabled ? 'done' : 'active')}
+      ${step(4, 'VLM 重排', `候选缩略图证据排序，enabled=${rerank.enabled === true}`, rerank.enabled ? 'done' : 'active')}
+      ${step(5, '最终帧预算', `窗口 ${windowText}，已选 ${selected.length} 帧，variant_count=${summary?.variant_count ?? '-'}`, selected.length ? 'done' : 'active')}
+    </div>
+    <div class="kv" style="margin-top:14px">
+      <label>视觉目标</label><span>${listText(plan.visual_targets)}</span>
+      <label>检索词</label><span>${listText(plan.query_terms)}</span>
+      <label>证据配比</label><span>${formatEvidenceMix(plan.evidence_mix || {})}</span>
+      <label>选中帧号</label><span>${selected.slice(0, 32).map(x => esc(x)).join(', ') || '-'}</span>
+    </div>`;
+}
+
+function renderStrive(d) {
+  const strive = d.strive_summary || d.strive || null;
+  setText('strive-badge', `重试 ${d.retry_count ?? 0}`);
+  const body = document.getElementById('strive-body');
+  if (!strive || strive.STRIVE == null) {
+    body.innerHTML = `<div class="timeline">${step(1, '采样变体', '生成 K=3 个时间窗口扰动。', 'done')}${step(2, '并行投票', d.model_answer ? '当前模式未返回 STRIVE 明细，可能是 no_vote。' : '等待模型投票。', d.model_answer ? 'done' : 'active')}${step(3, '置信度计算', '等待 V/M/E/gamma/delta 分项。', '')}</div>`;
+    return;
+  }
+  const dims = [
+    ['V', '投票一致性', '最高票数 / K', strive.V, 'var(--blue)'],
+    ['M', '胜出边际', '(第一名票数 - 第二名票数) / K', strive.M, 'var(--violet)'],
+    ['E', '熵集中度', '1 - H / log(N)，越集中越高', strive.E, 'var(--green)'],
+    ['γ', '类别难度修正', 'gamma_eff，类别先验 + 一致性提升', strive.gamma_eff ?? strive['γ_eff'], 'var(--amber)'],
+    ['δ', '模型自评修正', 'delta_factor，由 Confidence: [1-5] 得到', strive.delta_factor ?? strive['δ_factor'], 'var(--pink)'],
+  ];
+  const score = Number(strive.STRIVE || 0);
+  const tier = score >= .7 ? ['高置信度，采纳', 'var(--green)'] : score >= .4 ? ['中置信度，密集重采或继续诊断', 'var(--amber)'] : ['低置信度，触发重试/重定位', 'var(--red)'];
+  const votes = strive.vote_dist || {};
+  const windows = strive.sampling_windows || [];
+  body.innerHTML = `
+    <div class="timeline" style="margin-bottom:14px">
+      ${step(1, 'K=3 采样', `${windows.length || 3} 个扰动窗口进入投票。`, 'done')}
+      ${step(2, 'VLM 并行投票', `投票分布：${Object.entries(votes).map(([k,v]) => `${k}×${v}`).join('，') || '-'}`, 'done')}
+      ${step(3, 'STRIVE 判定', tier[0], score >= .7 ? 'done' : 'active')}
+    </div>
+    <div class="dim-grid">${dims.map(([key, name, desc, value, color]) => dim(key, name, desc, Number(value || 0), color)).join('')}</div>
+    <div class="chips" style="margin-top:12px">
+      ${Object.entries(votes).map(([k,v]) => `<span class="chip">${esc(k)} × ${esc(v)}</span>`).join('')}
+      ${strive.sampling_degenerate ? '<span class="chip" style="color:var(--red)">采样退化已压低置信度</span>' : ''}
+      ${strive.retry_action ? `<span class="chip">下一步 ${esc(strive.retry_action)}</span>` : ''}
+    </div>
+    <div class="score-box">
+      <div style="color:${tier[1]};font-weight:800;margin-bottom:8px">${tier[0]}</div>
+      <div class="score-main" style="color:${tier[1]}">${score.toFixed(4)}</div>
+      <div class="score-formula">STRIVE = (V × M)^α × E^β × γ_eff × δ_factor<br>= (${fmt(strive.V)} × ${fmt(strive.M)}) × ${fmt(strive.E)} × ${fmt(strive.gamma_eff ?? strive['γ_eff'])} × ${fmt(strive.delta_factor ?? strive['δ_factor'])}</div>
+    </div>`;
+}
+
+function step(n, title, text, state) {
+  return `<div class="step ${state || ''}"><div class="step-dot">${n}</div><div><h3>${esc(title)}</h3><p>${esc(text)}</p></div></div>`;
+}
+function dim(key, name, desc, value, color) {
+  const width = Math.max(0, Math.min(100, value * 100));
+  return `<div class="dim"><div class="dim-head"><span class="dim-name" style="color:${color}">${esc(key)} · ${esc(name)}</span><span class="dim-value" style="color:${color}">${fmt(value)}</span></div><div class="dim-desc">${esc(desc)}</div><div class="bar"><i style="width:${width.toFixed(1)}%;background:${color}"></i></div></div>`;
+}
+function parseQuestion(text) {
+  const lines = String(text || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  const options = [], stemParts = [];
+  for (const line of lines) {
+    // 首项可能写成 "Choices: A. ..." 或 "Answer: A. ..."；不固定选项数量。
+    const content = line.replace(/^\*\*([^*]+)\*\*/, '$1')
+      .replace(/^(?:(?:choices?|choose|options?|answer)\s*[:：]\s*)+/i, '');
+    if (content === '"""') continue; // 少量题目带有多行字符串的外层引号。
+    if (!content) continue;
+    const m = content.match(/^([A-G])[\.\)]\s*(.+)$/i);
+    if (m) options.push({ key: m[1].toUpperCase(), text: m[2] });
+    else if (options.length) options[options.length - 1].text += '\n' + content;
+    else stemParts.push(content.replace(/^question\s*[:：]?\s*/i, ''));
+  }
+  return { stem: stemParts.join('\n'), options };
+}
+function strategyFromData(d) { return d.retrieval_summary?.strategy || d.strive_summary?.retrieval?.strategy || ''; }
+function formatEvidenceMix(mix) {
+  const names = {
+    global: '全局覆盖',
+    scene_change: '场景变化',
+    semantic: '语义召回',
+    rerank: 'VLM重排',
+    anchors: '锚点帧',
+    tail: '尾段帧',
+    global_dense: '密集候选'
+  };
+  const entries = Object.entries(mix || {}).filter(([, value]) => value != null);
+  if (!entries.length) return '-';
+  return entries.map(([key, value]) => `${esc(names[key] || key)}：${esc(value)}`).join('，');
+}
+function inferStage(d) {
+  if (!d || !Object.keys(d).length) return '等待数据';
+  if (d.model_answer) return `已完成 #${d.qa_idx ?? '-'}`;
+  const strategy = d.retrieval_strategy || strategyFromData(d) || '';
+  if (String(strategy).startsWith('agentic_retrieval')) {
+    if (d.retrieval_summary || d.strive_summary?.retrieval) return 'Agentic 召回完成，等待模型回答';
+    if (d.frames && d.frames.length) return 'Agentic 已选帧，正在送入模型';
+    return 'Agentic 规划/候选池/语义召回中';
+  }
+  if (d.strive || d.strive_summary) return 'STRIVE 投票与置信度计算中';
+  if (d.frames && d.frames.length) return '抽帧完成，等待模型回复';
+  return '正在抽帧或定位时间窗口';
+}
+function getStrive(item) { return item.strive_summary?.STRIVE ?? item.strive?.STRIVE ?? null; }
+function normalizeOption(value) {
+  const m = String(value || '').trim().toUpperCase().match(/\b([A-G])\b/);
+  return m ? m[0] : '';
+}
+function listText(value) { return Array.isArray(value) && value.length ? value.slice(0,8).map(x => esc(x)).join(', ') : '-'; }
+function fmt(value) { const n = Number(value); return Number.isFinite(n) ? n.toFixed(3) : '-'; }
+function setText(id, value) { const el = document.getElementById(id); if (el) el.textContent = value; }
+function esc(value) { return String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function escapeAttr(value) { return esc(value).replace(/`/g, '&#96;'); }
+function debounce(fn, wait) { let timer = null; return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), wait); }; }
+</script>
+</body>
+</html>
