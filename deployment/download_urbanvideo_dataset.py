@@ -1,4 +1,4 @@
-"""Download and summarize the complete UrbanVideo-Bench dataset.
+"""下载 Hugging Face 指定版本的数据集并记录下载清单。
 
 The dataset is intentionally kept outside Git.  snapshot_download resumes
 interrupted transfers and materializes the files under the requested local
