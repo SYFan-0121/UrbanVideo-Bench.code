@@ -1,4 +1,4 @@
-"""Send 1-64 synthetic JPEG frames to the local Windows VLM service."""
+"""向本地 VLM 服务发送 1–64 张合成图像，检查多图推理接口。"""
 
 from __future__ import annotations
 
