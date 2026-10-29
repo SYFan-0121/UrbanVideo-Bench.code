@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-run.py
-主评测入口：读取 UrbanVideo-Bench 的 MCQ 数据集，统一使用 Agentic 检索抽帧，
-调用视觉大模型回答问题，并把答案、STRIVE 置信度和 Agentic 检索元信息写入结果文件。
+"""执行 16 类 Agentic 评测、抽帧、断点续跑与结果保存。
 
 核心流程：
 1. 读取 dataset/MCQ.parquet 和 dataset/videos 下的视频。
