@@ -21,6 +21,18 @@ The benchmark is designed to evaluate whether video-large language models (Video
 
 原 `codex/research-server-full-run` 已归档为 `codex/archive-agentic-12class`；原 `codex/agentic-16class` 与 `main` 重复，整理后统一使用 `main`。两个固定标签保留原始提交及完整历史。复现实验时选固定标签，日常维护使用 `main`，详细差异见 [版本记录](deployment/CODE_VERSIONS.md)。
 
+## 独立实验目录
+
+| 目录 | 功能 | 启动入口 | 结果与看板数据 |
+| --- | --- | --- | --- |
+| [`agentic/`](agentic/README.md) | 原 Agentic 项目，16 类统一 strive/no_vote | `run.py` | `agentic/result/` |
+| [`uniform32/`](uniform32/README.md) | 无水印均匀基准，长视频 32 帧，短视频全帧 | `run_uniform32.py` | `uniform32/result/` |
+| `deployment/` | 共用的数据准备和 VLM 模型服务工具 | — | — |
+
+先进入对应实验文件夹，再运行脚本、看板或评估。两套目录各自包含依赖清单、Prompt、模型接口、评估、看板和测试，不跨目录导入。
+服务器 `agentic/dataset` 与 `uniform32/dataset` 都联接到仓库根目录的 `dataset/`，不复制视频。建立联接的方法见 [服务器流程](deployment/SERVER_FULL_RUN.md)。
+`agentic/run.py` 保持指定提交 `9f0b9cdb324bdc62ad3b46b632d46c73c9bb09dd` 的原始字节；均匀基准不导入 Agentic/STRIVE。
+
 ## 文件功能索引
 
 GitHub 文件列表右侧显示的是该路径最近一次提交的说明。本次用文件功能作为相应提交说明；以后修改文件时，该列会显示新的提交说明。下表提供持续维护的功能索引。
@@ -29,19 +41,22 @@ GitHub 文件列表右侧显示的是该路径最近一次提交的说明。本�
 | --- | --- |
 | [`.gitignore`](.gitignore) | 排除数据、权重、密钥、缓存和实验产物 |
 | [`README.md`](README.md) | 项目说明、版本入口与逐文件功能索引 |
-| [`agentic_retrieval.py`](agentic_retrieval.py) | 检索规划、多源候选池、可选 CLIP 召回、VLM 重排与帧预算融合 |
-| [`confidence.py`](confidence.py) | STRIVE 多次投票、置信度计算与低置信度自适应重试 |
-| [`eval.py`](eval.py) | 提取预测答案、统计总体及分类准确率并导出 Excel 报告 |
-| [`prompts.py`](prompts.py) | 按 16 类生成问答提示，并根据实际选项确定答案范围 |
-| [`run.py`](run.py) | 执行 16 类 Agentic 评测、抽帧、断点续跑与结果保存 |
-| [`run_uniform32.py`](run_uniform32.py) | 独立执行无水印均匀抽帧基准，短视频取全部帧，结果写入 result/uniform32 |
-| [`server.py`](server.py) | 提供实时进度接口、Socket.IO 推送、SQLite 历史查询与视频回看 |
-| [`video_locks.py`](video_locks.py) | 按视频路径共享线程锁，协调同一视频的并发解码 |
-| [`vlm_api.py`](vlm_api.py) | 统一 MiMo、Qwen 与 OpenAI 兼容服务的请求及参数适配 |
-| [`templates/dashboard.html`](templates/dashboard.html) | 展示实验队列、题目选项、证据帧、答案与历史结果 |
-| [`question_generation/MCQ_generation_basic.py`](question_generation/MCQ_generation_basic.py) | 提取视频运动及物体信息，生成基础感知与推理选择题 |
-| [`question_generation/MCQ_generation_goal.py`](question_generation/MCQ_generation_goal.py) | 结合视频与目标地点生成目标导航选择题 |
-| [`question_generation/MCQ_generation_route.py`](question_generation/MCQ_generation_route.py) | 结合视频与移动指令生成路线导航选择题 |
+| [`agentic/agentic_retrieval.py`](agentic/agentic_retrieval.py) | 检索规划、多源候选池、可选 CLIP 召回、VLM 重排与帧预算融合 |
+| [`agentic/confidence.py`](agentic/confidence.py) | STRIVE 多次投票、置信度计算与低置信度自适应重试 |
+| [`agentic/eval.py`](agentic/eval.py) | 提取预测答案、统计总体及分类准确率并导出 Excel 报告 |
+| [`agentic/prompts.py`](agentic/prompts.py) | 按 16 类生成问答提示，并根据实际选项确定答案范围 |
+| [`agentic/run.py`](agentic/run.py) | 执行 16 类 Agentic 评测、抽帧、断点续跑与结果保存 |
+| [`uniform32/run_uniform32.py`](uniform32/run_uniform32.py) | 独立执行无水印均匀抽帧基准，短视频取全部帧，结果写入 uniform32/result |
+| [`agentic/server.py`](agentic/server.py) | 提供实时进度接口、Socket.IO 推送、SQLite 历史查询与视频回看 |
+| [`agentic/video_locks.py`](agentic/video_locks.py) | 按视频路径共享线程锁，协调同一视频的并发解码 |
+| [`agentic/vlm_api.py`](agentic/vlm_api.py) | 统一 MiMo、Qwen 与 OpenAI 兼容服务的请求及参数适配 |
+| [`agentic/templates/dashboard.html`](agentic/templates/dashboard.html) | 展示实验队列、题目选项、证据帧、答案与历史结果 |
+| [`agentic/question_generation/MCQ_generation_basic.py`](agentic/question_generation/MCQ_generation_basic.py) | 提取视频运动及物体信息，生成基础感知与推理选择题 |
+| [`agentic/question_generation/MCQ_generation_goal.py`](agentic/question_generation/MCQ_generation_goal.py) | 结合视频与目标地点生成目标导航选择题 |
+| [`agentic/question_generation/MCQ_generation_route.py`](agentic/question_generation/MCQ_generation_route.py) | 结合视频与移动指令生成路线导航选择题 |
+| [`uniform32/answers.py`](uniform32/answers.py) | 独立提取 A–G 答案，不导入 STRIVE |
+| [`uniform32/requirements.txt`](uniform32/requirements.txt) | 均匀基准客户端、数据与看板依赖 |
+| [`agentic/requirements.txt`](agentic/requirements.txt) | Agentic 客户端、数据、CLIP 与看板依赖 |
 | [`deployment/CODE_VERSIONS.md`](deployment/CODE_VERSIONS.md) | 记录分支用途、固定实验标签、版本差异与验证结果 |
 | [`deployment/SERVER_FULL_RUN.md`](deployment/SERVER_FULL_RUN.md) | 说明服务器端数据准备、模型启动、完整评测与结果评估流程 |
 | [`deployment/WINDOWS_NATIVE_DEPLOYMENT.md`](deployment/WINDOWS_NATIVE_DEPLOYMENT.md) | 说明 Windows 原生 VLM 环境、SSH 隧道与模型服务部署 |
@@ -54,10 +69,10 @@ GitHub 文件列表右侧显示的是该路径最近一次提交的说明。本�
 | [`deployment/upload_local_video_supplement.ps1`](deployment/upload_local_video_supplement.ps1) | 筛选 Hugging Face 未提供的本地视频并通过 SSH 上传 |
 | [`deployment/verify_urbanvideo_dataset.py`](deployment/verify_urbanvideo_dataset.py) | 对照题库统计视频覆盖率并导出缺失视频清单 |
 | [`deployment/windows_vlm_server.py`](deployment/windows_vlm_server.py) | 加载本地 Qwen2.5-VL 并提供 OpenAI 兼容多图推理接口 |
-| [`tests/dashboard.test.cjs`](tests/dashboard.test.cjs) | 回归检查题目选项解析、等待状态与答案高亮 |
-| [`tests/test_agentic_modes.py`](tests/test_agentic_modes.py) | 检查全部 16 类的两种 Agentic 模式、32 帧预算与结果保存 |
-| [`tests/test_question_options.py`](tests/test_question_options.py) | 检查 2–7 项题目的提示范围、答案提取与 G 选项评估 |
-| [`tests/test_uniform32.py`](tests/test_uniform32.py) | 检查无水印采样、短视频全部帧、单次调用与失败题续跑 |
+| [`agentic/tests/dashboard.test.cjs`](agentic/tests/dashboard.test.cjs) | 回归检查题目选项解析、等待状态与答案高亮 |
+| [`agentic/tests/test_agentic_modes.py`](agentic/tests/test_agentic_modes.py) | 检查全部 16 类的两种 Agentic 模式、32 帧预算与结果保存 |
+| [`agentic/tests/test_question_options.py`](agentic/tests/test_question_options.py) | 检查 2–7 项题目的提示范围、答案提取与 G 选项评估 |
+| [`uniform32/tests/test_uniform32.py`](uniform32/tests/test_uniform32.py) | 检查无水印采样、短视频全部帧、单次调用与失败题续跑 |
 
 ## 研究服务器使用
 
@@ -69,9 +84,9 @@ The current inference code reads provider configuration from environment variabl
 
 Use a distinct `RUN_ID` for every baseline or ablation. This keeps CSV, dashboard SQLite, and evaluation outputs separate while the Git commit records the exact code version.
 
-Use `python run.py` for Agentic experiments: all 16 categories use Agentic retrieval, with `AGENTIC_GLOBAL_MODE=strive` or `AGENTIC_GLOBAL_MODE=no_vote`. This file is restored exactly from commit `9f0b9cdb324bdc62ad3b46b632d46c73c9bb09dd`.
+From `agentic/`, use `python run.py` for Agentic experiments: all 16 categories use Agentic retrieval, with `AGENTIC_GLOBAL_MODE=strive` or `AGENTIC_GLOBAL_MODE=no_vote`. This file is restored exactly from commit `9f0b9cdb324bdc62ad3b46b632d46c73c9bb09dd`.
 
-Use the separate `run_uniform32.py` for the full-video uniform 32-frame baseline. It adapts the supplied `latest_model_32frame_benchmark_test.py`: serial question processing, one answer call, per-question CSV saves and resume. For videos longer than 32 frames, it samples 32 frames including both endpoints; for shorter videos, it uploads every frame. It encodes the original images without frame-number or time watermarks, uses the project prompts and A–G option handling, and reads API configuration from the environment. It does not import or modify `run.py`. Results and the last RUN_ID are saved under `result/uniform32/`, separate from the Agentic CSV files under `result/`. Original responses are saved in `RawOutput`; genuine decoding or inference failures remain eligible for resume. The strategy is `uniform_32_no_watermark_no_vote`, so watermarked results cannot be resumed as this baseline.
+From `uniform32/`, use the separate `run_uniform32.py` for the full-video uniform 32-frame baseline. It adapts the supplied `latest_model_32frame_benchmark_test.py`: serial question processing, one answer call, per-question CSV saves and resume. For videos longer than 32 frames, it samples 32 frames including both endpoints; for shorter videos, it uploads every frame. It encodes the original images without frame-number or time watermarks, uses the project prompts and A–G option handling, and reads API configuration from the environment. It does not import or modify `run.py`. Results and dashboard databases are saved under `uniform32/result/`, separate from `agentic/result/`. Original responses are saved in `RawOutput`; genuine decoding or inference failures remain eligible for resume. The strategy is `uniform_32_no_watermark_no_vote`, so watermarked results cannot be resumed as this baseline.
 
 ```powershell
 python run_uniform32.py --run-id qwen25vl7b_uniform32_baseline
@@ -134,7 +149,7 @@ We provide three seperated scripts: Basic, Goal, and Route for generating questi
    ```
 
 
-Follow the steps below to configure and execute the script `question_generation/MCQ_generation_basic.py` (the other two are similar):
+Follow the steps below to configure and execute the script `agentic/question_generation/MCQ_generation_basic.py` (the other two are similar):
 
 1. Set your Gemini API key and select the appropriate model version:
    ```python
@@ -169,64 +184,28 @@ Follow the steps below to configure and execute the script `question_generation/
 ## Example code for running the benchmark
 ### Data Preparation
 
-To get started, download the dataset from [Hugging Face](https://huggingface.co/datasets/EmbodiedCity/UrbanVideo-Bench) 
-and place it in the `dataset` folder within the project directory. 
-After downloading, ensure the folder structure matches the one described below.
-```
-UrbanVideo-Bench.code/
-├── dataset/
-│   ├── videos/          # Contains video files used as input for the model
-│   ├── MCQ.parquet      # Contains multiple-choice questions
-│   └── ...
-├── run.py               # Script for running the model and generating predictions
-├── eval.py              # Script for evaluating the model's predictions
-├── README.md            # Documentation for the project
-└── ...                  # Other potential files or subdirectories
-```
-
+Place `MCQ.parquet` and `videos/*.mp4` under the repository-level `dataset/` and link each experiment's `dataset` directory to it as described in the server guide. The dataset stays outside Git.
 
 ### Running
 
-We provide a sample script, `run.py`, to run the dataset using an OpenAI-style API. Follow the steps below to configure and execute the script:
+Configure the VLM provider with environment variables, then enter **one** experiment directory from the repository root:
 
-1. Set the model name in `run.py`:
-   ```python
-   model = "your_model_name"
-   ```
+```powershell
+Set-Location agentic
+$env:AGENTIC_GLOBAL_MODE = 'strive'  # or no_vote
+python run.py
+```
 
-2. Configure OpenAI API credentials:
-   ```python
-   client = OpenAI(
-       api_key='your_api_key',
-       base_url='your_base_url'
-   )
-   ```
+For the uniform baseline, enter `uniform32/` from the repository root instead:
 
-3. Run the script:
-   ```bash
-   python run.py
-   ```
-   Results will be saved to `result/%s_output.csv`.
-
+```powershell
+Set-Location uniform32
+python run_uniform32.py --run-id uniform32_experiment_name
+```
 
 ### Evaluation
 
-The `eval.py` script is provided to evaluate the model's predictions. It extracts the options from the model's output and calculates the accuracy by comparing them to the ground truth.
-
-1. Modify the file path in `eval.py` to match the output file from `run.py`:
-   ```python
-   file_path = 'result/gpt-4o_output.csv'  # Replace with your output file path
-   ```
-
-2. Run the script:
-   ```bash
-   python eval.py
-   ```
-
-3. The script compares predictions to ground truth and calculates accuracy. Results are saved to: `result/%s_acc.xlsx`
-
-*Note: The extraction method here is the simplest regular matching. However, the output of small-sized models often does not follow instructions. So it needs to be adjusted separately.*
-
+Run `python eval.py <result.csv>` inside the experiment directory. Each directory's `result/` holds only that experiment family's CSV, Excel reports and dashboard history. Model service setup is shared under `deployment/`.
 
 ## Acknowledgements
 
