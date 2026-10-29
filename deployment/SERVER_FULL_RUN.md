@@ -1,5 +1,7 @@
 # 服务器端完整实验流程
 
+本文用于说明服务器端数据准备、模型启动、完整评测与结果评估流程。
+
 本流程把代码、数据集、视频解码/抽帧、CLIP 语义召回、Qwen2.5-VL 推理、结果和评估都放在 Windows 服务器上。服务器上的 `syf` 账号使用自己的目录，不改动另一位用户的环境。
 
 ## 目录
@@ -24,27 +26,29 @@ D:\VLM\syf\
 
 ## 1. 在 GitHub 管理代码
 
+当前研究仓库使用 `main` 作为默认维护分支，旧版位于 `codex/archive-agentic-12class`；复现实验请使用 [版本记录](CODE_VERSIONS.md) 中的固定标签。下面的创建分支和添加 remote 命令用于首次配置；已配置的仓库直接在 `main` 上继续维护。
+
 不要把视频、模型权重、缓存或密钥提交到 Git。`.gitignore` 已排除这些内容。建议在 GitHub 创建自己的代码仓库，或 fork 官方仓库，把本地研究改动推送到自己的仓库；官方 `origin` 只作为上游参考。公开项目的 fork 通常沿用上游可见性；如果需要私有仓库，应先确认上游许可证和学校规定，再创建独立仓库。
 
 在本机项目根目录执行，逐条检查后再提交：
 
 ```powershell
-git switch -c research/server-full-run
+git switch -c codex/server-full-run
 git remote add research git@github.com:<你的GitHub用户名>/<你的仓库名>.git
 git add .gitignore run.py eval.py prompts.py confidence.py agentic_retrieval.py video_locks.py vlm_api.py server.py templates deployment
 git status --short
 git diff --cached --stat
 git commit -m "Prepare native Windows server experiments"
-git push -u research research/server-full-run
+git push -u research codex/server-full-run
 ```
 
-将占位符替换成自己的 GitHub 用户名和仓库名。不要使用 `git add .`，当前工作区还有本地视频、结果和其他研究资料。提交前检查 `git status` 和暂存差异，确认没有 `.mp4`、Parquet、密钥、压缩包或模型缓存。工作区里已有的删除记录不会被上面的路径列表自动暂存。
+将占位符替换成自己的 GitHub 用户名和仓库名。首次配置时，新分支审核完成后合并到 `main`，服务器从 `main` 或固定实验标签检出。不要使用 `git add .`，当前工作区还有本地视频、结果和其他研究资料。提交前检查 `git status` 和暂存差异，确认没有 `.mp4`、Parquet、密钥、压缩包或模型缓存。工作区里已有的删除记录不会被上面的路径列表自动暂存。
 
 服务器先创建暂存目录，再克隆自己的代码分支：
 
 ```powershell
 New-Item -ItemType Directory -Force 'D:\VLM\syf\incoming-local-videos'
-git clone --branch research/server-full-run --single-branch git@github.com:<你的GitHub用户名>/<你的仓库名>.git D:\VLM\syf\UrbanVideo-Bench.code
+git clone --branch main --single-branch git@github.com:<你的GitHub用户名>/<你的仓库名>.git D:\VLM\syf\UrbanVideo-Bench.code
 cd D:\VLM\syf\UrbanVideo-Bench.code
 ```
 
