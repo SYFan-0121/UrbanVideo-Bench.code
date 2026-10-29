@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""执行 16 类 Agentic 评测、抽帧、断点续跑与结果保存。
+"""执行均匀抽帧基准或 16 类 Agentic 评测，支持断点续跑与结果保存。
 
 核心流程：
 1. 读取 dataset/MCQ.parquet 和 dataset/videos 下的视频。
-2. 全部 16 类统一使用 Agentic 检索，按全局模式选择 no_vote 或 strive。
+2. 均匀基准对全部类别使用 32 帧单次回答；Agentic 按全局模式选择 no_vote 或 strive。
 3. 调用 VLM 获取答案。
 4. 写入 result/{model}_output.csv，并向 dashboard 推送实时状态。
 """
@@ -345,6 +345,9 @@ def answer_once_global_uniform(client, model, video_path, total_frames,
     """不走 STRIVE 的基线调用：全视频均匀抽 n_frames 帧，然后只问 VLM 一次。"""
     print(f"[NoVote] Sampling {n_frames} uniform frames from full video...", flush=True)
     frames = sample_frames_by_ratio_from_path(video_path, total_frames, 0.0, 1.0, n=n_frames)
+    # 基准帧预算固定，解码不足时标为失败，避免把不足 32 帧的回答混入结果。
+    if len(frames) != n_frames:
+        raise ValueError(f"Uniform baseline requires {n_frames} frames; decoded {len(frames)}: {video_path}")
     return answer_once_with_frames(client, model, qa_category, question, frames)
 
 
@@ -395,14 +398,14 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
                 AGENTIC_GLOBAL_MODE,
                 RUN_ID,
                 _lock, _fatal_event,
-                _total_processed_ref, _correct_count_ref):
+                _total_processed_ref, _correct_count_ref, frame_sampling="agentic"):
     """
     处理单条 QA 样本，是 run.py 的核心调度函数。
 
     主要职责：
     1. 读取题目、视频路径和正确答案。
-    2. 根据全局模式选择 Agentic 单次回答或 Agentic STRIVE。
-    3. 调用 Agentic 检索、STRIVE 投票或单次 VLM 回答。
+    2. 根据 frame_sampling 选择均匀基准或 Agentic 检索。
+    3. 均匀基准单次回答；Agentic 根据全局模式选择单次回答或 STRIVE。
     4. 记录答案、置信度、检索元信息和全局进度。
 
     _lock: 多线程写 CSV 和累计准确率时使用的互斥锁。
@@ -473,9 +476,10 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
             log_progress(qa_idx, f"Sampling uniform frames: window=[{s:.2f}, {e:.2f}], n={n}")
             return sample_frames_by_ratio_from_path(video_path, total_frames, s, e, n)
 
-        # 全部类别从全视频范围进入 Agentic，类别差异由检索计划处理。
+        # 均匀基准覆盖整段视频；Agentic 的类别差异由检索计划处理。
         start_ratio, end_ratio = 0.0, 1.0
-        initial_strategy = f"agentic_retrieval_{AGENTIC_GLOBAL_MODE}"
+        initial_strategy = (f"uniform_{BASE_N_FRAMES}_no_vote" if frame_sampling == "uniform"
+                            else f"agentic_retrieval_{AGENTIC_GLOBAL_MODE}")
 
         num_opts = detect_num_options(qa)
         log_progress(
@@ -497,9 +501,23 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
 
         retrieval_meta = None
 
-        # Agentic no_vote：只检索一次证据帧，然后只调用一次 VLM；速度快但没有 STRIVE 置信度。
-        # 适合快速测试，但没有 STRIVE 分数。
-        if AGENTIC_GLOBAL_MODE == "no_vote":
+        if frame_sampling == "uniform":
+            log_progress(qa_idx, f"Uniform baseline: full-video {BASE_N_FRAMES} frames, one answer call.")
+            emit_stage(f"全视频均匀抽取 {BASE_N_FRAMES} 帧，单次模型回答", retrieval_strategy=initial_strategy)
+            final_answer, final_frames, _raw_output = answer_once_global_uniform(
+                client, model, video_path, total_frames, qa_category, qa, n_frames=BASE_N_FRAMES,
+            )
+            retrieval_meta = {
+                "strategy": initial_strategy,
+                "target_frames": BASE_N_FRAMES,
+                "actual_frames": len(final_frames),
+                "window": [0.0, 1.0],
+            }
+            strive_score = None
+            breakdown = {"strategy": initial_strategy, "votes": [final_answer]}
+            retry_count = 0
+        # Agentic no_vote：检索证据帧后单次回答，不计算 STRIVE 置信度。
+        elif AGENTIC_GLOBAL_MODE == "no_vote":
             log_progress(qa_idx, "Agentic no-vote mode: start retrieval-based frame extraction.")
             emit_stage("Agentic 正在规划、构建候选池并做语义召回", retrieval_strategy=initial_strategy)
             final_frames, retrieval_meta = sample_frames_agentic_retrieval(
@@ -691,6 +709,10 @@ if __name__ == '__main__':
     # default for cloud runs, and set VLM_OUTER_CONCURRENCY=1 for the Windows
     # server service.
     CONCURRENCY = max(1, int(os.environ.get("VLM_OUTER_CONCURRENCY", "4")))
+    # 抽帧策略独立于 Agentic 的投票模式；入口只校验一次。
+    FRAME_SAMPLING = os.environ.get("FRAME_SAMPLING", "agentic").strip().lower()
+    if FRAME_SAMPLING not in {"uniform", "agentic"}:
+        raise ValueError("FRAME_SAMPLING must be either 'uniform' or 'agentic'")
     # "no_vote" = scheme A; "strive" = scheme B.
     AGENTIC_GLOBAL_MODE = os.environ.get("AGENTIC_GLOBAL_MODE", "no_vote").strip().lower()
     if AGENTIC_GLOBAL_MODE not in {"no_vote", "strive"}:
@@ -721,7 +743,8 @@ if __name__ == '__main__':
     if not os.path.exists(folder_path_result):
         os.makedirs(folder_path_result)
 
-    RUN_ID, RUN_MODE = resolve_run_config(folder_path_result, model, AGENTIC_GLOBAL_MODE)
+    run_label = f"uniform_{BASE_N_FRAMES}" if FRAME_SAMPLING == "uniform" else AGENTIC_GLOBAL_MODE
+    RUN_ID, RUN_MODE = resolve_run_config(folder_path_result, model, run_label)
     if RUN_ID == "legacy":
         res_path = os.path.join(folder_path_result, '%s_output.csv' % make_safe_run_id(model))
     else:
@@ -730,7 +753,10 @@ if __name__ == '__main__':
     print("=" * 72)
     print(f"RUN_ID: {RUN_ID}")
     print(f"RUN_MODE: {RUN_MODE}")
-    print(f"Agentic mode: {AGENTIC_GLOBAL_MODE}; all 16 categories; base frames per answer: {BASE_N_FRAMES}")
+    if FRAME_SAMPLING == "uniform":
+        print(f"Uniform baseline: all 16 categories; {BASE_N_FRAMES} full-video frames; one answer call")
+    else:
+        print(f"Agentic mode: {AGENTIC_GLOBAL_MODE}; all 16 categories; base frames per answer: {BASE_N_FRAMES}")
     print(f"Result CSV: {res_path}")
     print(f"Dashboard SQLite: result/dashboard_{RUN_ID}.sqlite3")
     print(f"Dashboard update URL: {DASHBOARD_UPDATE_URL}")
@@ -796,7 +822,8 @@ if __name__ == '__main__':
                 AGENTIC_GLOBAL_MODE,
                 RUN_ID,
                 _lock, _fatal_event,
-                _total_processed_ref, _correct_count_ref
+                _total_processed_ref, _correct_count_ref,
+                frame_sampling=FRAME_SAMPLING,
             ): qa_idx
             for qa_idx in valid_indices
         }
