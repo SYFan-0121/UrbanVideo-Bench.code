@@ -1,4 +1,4 @@
-"""Exercise all 16 categories without opening real videos or calling a VLM."""
+"""检查全部 16 类的两种 Agentic 模式、32 帧预算与结果保存。"""
 
 from contextlib import redirect_stdout
 import io
