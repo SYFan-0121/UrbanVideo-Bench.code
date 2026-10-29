@@ -10,17 +10,17 @@
 - 两个已发布实验标签保持原有提交。本次整理只补充功能注释与文档，不改变模型推理行为。
 - GitHub 文件列表的说明来自最近一次提交；逐文件功能索引见 [README](../README.md#文件功能索引)。
 
-## 均匀 32 帧基准（2026-10-29）
+## 无水印均匀 32 帧基准（2026-10-29）
 
-- 独立入口固定标签：`uniform32-standalone-20261029`，维护分支继续使用 `main`。
-- 原初始标签 `uniform32-baseline-20261029` 保留初次启动的代码记录，不移动标签；后续使用独立入口版本。
-- 入口：`python run_uniform32.py --run-id <RUN_ID>`；续跑增加 `--resume`。全部 16 类从完整视频首帧到尾帧等间隔抽取 32 帧，按时间排序并保留原时间戳水印；每题仅执行一次回答调用。
-- 复用现有类别 Prompt、模型接口和答案提取；跳过 Agentic 规划、CLIP、VLM 重排、Stage1 定位及 STRIVE 投票。固定帧预算不足时记为失败，不使用较少帧数回答。
-- CSV 策略名为 `uniform_32_no_vote`；记录实际帧数与完整视频窗口，STRIVE 分数为空。
-- `run.py` 与对应 Agentic 测试精确恢复至 `9f0b9cdb324bdc62ad3b46b632d46c73c9bb09dd`，不通过该入口运行均匀基准。
-- `run_uniform32.py` 改编自用户提供的 `latest_model_32frame_benchmark_test.py`，保留逐题处理与保存结构；移除硬编码凭据、全视频逐帧编码和按最后有效行续跑的做法，改为只解码目标帧、读取环境配置、按有效答案补跑遗漏题。
-- 均匀基准的 Prompt、水印与 JPEG 输入保持首轮实验一致，可继续使用原均匀基准 RUN_ID；模型和采样策略改变时另建 RUN_ID。原始响应与失败原因分别保存在 RawOutput、Error 列。
-- 回归覆盖全部 16 类均匀基准、帧数不足、原有两种 Agentic 模式与 A–G 选项识别。
+- 当前固定标签：`uniform32-no-watermark-20261029`，维护分支继续使用 `main`。
+- 独立入口：`python run_uniform32.py --run-id <RUN_ID>`；续跑增加 `--resume`。长视频包含首尾帧等间隔取 32 帧；视频不足 32 帧时上传全部原始帧，包括只有 1 帧的视频。
+- 图像直接 JPEG 编码，不绘制帧号、秒数或任何水印。CSV 元信息保留采样下标、总帧数、实际输入帧数与 `watermark=false`；这些元信息不叠加到图像。
+- CSV 策略名为 `uniform_32_no_watermark_no_vote`，与此前带水印版本区分；每题单次回答，不执行检索规划、CLIP、VLM 重排或 STRIVE。
+- `run.py` 保持指定提交 `9f0b9cdb324bdc62ad3b46b632d46c73c9bb09dd` 的 Agentic 源码。均匀入口不导入或改写该文件。
+- Agentic CSV 默认在 `result/`，均匀基准 CSV、last_run_id 默认在 `result/uniform32/`，也可用 `--result-dir` 指定目录。看板仍按不同 RUN_ID 使用独立 SQLite 文件；本轮未改前端或后端。
+- 脚本改编自用户提供的 `latest_model_32frame_benchmark_test.py`，复用逐题推理、保存与续跑结构，使用环境变量配置、项目 Prompt 与 A–G 答案提取。原始响应和失败原因分别保存为 RawOutput、Error。
+- 本次停止并删除此前带水印的 `qwen25vl7b_uniform32_baseline_20261029_170215` 实验记录，不保留实验结果备份，不自动启动新实验。历史代码标签 `uniform32-baseline-20261029`、`uniform32-standalone-20261029` 保留原提交，不移动。
+- 验证覆盖原图 JPEG 字节无水印、长视频 32 帧、1/17/31/32 帧视频全部输入、单次调用、失败题续跑及原有 Agentic 行为。
 
 ## 旧版：12 类 Agentic 检索 + 4 类原始 STRIVE
 
