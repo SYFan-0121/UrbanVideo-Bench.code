@@ -12,11 +12,14 @@
 
 ## 均匀 32 帧基准（2026-10-29）
 
-- 固定标签：`uniform32-baseline-20261029`，维护分支继续使用 `main`。
-- `FRAME_SAMPLING=uniform`：全部 16 类从完整视频首帧到尾帧等间隔抽取 32 帧，按时间排序并保留原时间戳水印；每题仅执行一次回答调用。
+- 独立入口固定标签：`uniform32-standalone-20261029`，维护分支继续使用 `main`。
+- 原初始标签 `uniform32-baseline-20261029` 保留初次启动的代码记录，不移动标签；后续使用独立入口版本。
+- 入口：`python run_uniform32.py --run-id <RUN_ID>`；续跑增加 `--resume`。全部 16 类从完整视频首帧到尾帧等间隔抽取 32 帧，按时间排序并保留原时间戳水印；每题仅执行一次回答调用。
 - 复用现有类别 Prompt、模型接口和答案提取；跳过 Agentic 规划、CLIP、VLM 重排、Stage1 定位及 STRIVE 投票。固定帧预算不足时记为失败，不使用较少帧数回答。
 - CSV 策略名为 `uniform_32_no_vote`；记录实际帧数与完整视频窗口，STRIVE 分数为空。
-- `FRAME_SAMPLING=agentic` 是默认值，原有 Agentic 的两种模式保持原行为。实验之间切换抽帧策略或投票模式时使用不同 RUN_ID。
+- `run.py` 与对应 Agentic 测试精确恢复至 `9f0b9cdb324bdc62ad3b46b632d46c73c9bb09dd`，不通过该入口运行均匀基准。
+- `run_uniform32.py` 改编自用户提供的 `latest_model_32frame_benchmark_test.py`，保留逐题处理与保存结构；移除硬编码凭据、全视频逐帧编码和按最后有效行续跑的做法，改为只解码目标帧、读取环境配置、按有效答案补跑遗漏题。
+- 均匀基准的 Prompt、水印与 JPEG 输入保持首轮实验一致，可继续使用原均匀基准 RUN_ID；模型和采样策略改变时另建 RUN_ID。原始响应与失败原因分别保存在 RawOutput、Error 列。
 - 回归覆盖全部 16 类均匀基准、帧数不足、原有两种 Agentic 模式与 A–G 选项识别。
 
 ## 旧版：12 类 Agentic 检索 + 4 类原始 STRIVE
