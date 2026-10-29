@@ -1,3 +1,5 @@
+"""提取预测答案、统计总体及分类准确率并导出 Excel 报告。"""
+
 import argparse
 import os
 import re
