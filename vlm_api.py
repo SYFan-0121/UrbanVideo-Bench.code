@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-VLM API provider adapter.
+"""统一 MiMo、Qwen 与 OpenAI 兼容服务的请求及参数适配。
 
 The benchmark sends locally sampled video frames as base64 JPEG image inputs.
 This module keeps provider-specific endpoint and token-parameter differences in
