@@ -34,7 +34,7 @@ GitHub 文件列表右侧显示的是该路径最近一次提交的说明。本�
 | [`eval.py`](eval.py) | 提取预测答案、统计总体及分类准确率并导出 Excel 报告 |
 | [`prompts.py`](prompts.py) | 按 16 类生成问答提示，并根据实际选项确定答案范围 |
 | [`run.py`](run.py) | 执行 16 类 Agentic 评测、抽帧、断点续跑与结果保存 |
-| [`run_uniform32.py`](run_uniform32.py) | 独立执行均匀 32 帧单次回答基准，逐题保存原始输出并支持续跑 |
+| [`run_uniform32.py`](run_uniform32.py) | 独立执行无水印均匀抽帧基准，短视频取全部帧，结果写入 result/uniform32 |
 | [`server.py`](server.py) | 提供实时进度接口、Socket.IO 推送、SQLite 历史查询与视频回看 |
 | [`video_locks.py`](video_locks.py) | 按视频路径共享线程锁，协调同一视频的并发解码 |
 | [`vlm_api.py`](vlm_api.py) | 统一 MiMo、Qwen 与 OpenAI 兼容服务的请求及参数适配 |
@@ -57,7 +57,7 @@ GitHub 文件列表右侧显示的是该路径最近一次提交的说明。本�
 | [`tests/dashboard.test.cjs`](tests/dashboard.test.cjs) | 回归检查题目选项解析、等待状态与答案高亮 |
 | [`tests/test_agentic_modes.py`](tests/test_agentic_modes.py) | 检查全部 16 类的两种 Agentic 模式、32 帧预算与结果保存 |
 | [`tests/test_question_options.py`](tests/test_question_options.py) | 检查 2–7 项题目的提示范围、答案提取与 G 选项评估 |
-| [`tests/test_uniform32.py`](tests/test_uniform32.py) | 检查独立均匀基准的采样一致性、模型调用与失败题续跑 |
+| [`tests/test_uniform32.py`](tests/test_uniform32.py) | 检查无水印采样、短视频全部帧、单次调用与失败题续跑 |
 
 ## 研究服务器使用
 
@@ -71,7 +71,7 @@ Use a distinct `RUN_ID` for every baseline or ablation. This keeps CSV, dashboar
 
 Use `python run.py` for Agentic experiments: all 16 categories use Agentic retrieval, with `AGENTIC_GLOBAL_MODE=strive` or `AGENTIC_GLOBAL_MODE=no_vote`. This file is restored exactly from commit `9f0b9cdb324bdc62ad3b46b632d46c73c9bb09dd`.
 
-Use the separate `run_uniform32.py` for the full-video uniform 32-frame baseline. It adapts the supplied `latest_model_32frame_benchmark_test.py`: serial question processing, one answer call, per-question CSV saves and resume. It decodes only the 32 selected frames, uses the project prompts and A–G option handling, and reads API configuration from the environment. It does not import or modify `run.py`. Original responses are saved in `RawOutput`; failed questions remain eligible for resume.
+Use the separate `run_uniform32.py` for the full-video uniform 32-frame baseline. It adapts the supplied `latest_model_32frame_benchmark_test.py`: serial question processing, one answer call, per-question CSV saves and resume. For videos longer than 32 frames, it samples 32 frames including both endpoints; for shorter videos, it uploads every frame. It encodes the original images without frame-number or time watermarks, uses the project prompts and A–G option handling, and reads API configuration from the environment. It does not import or modify `run.py`. Results and the last RUN_ID are saved under `result/uniform32/`, separate from the Agentic CSV files under `result/`. Original responses are saved in `RawOutput`; genuine decoding or inference failures remain eligible for resume. The strategy is `uniform_32_no_watermark_no_vote`, so watermarked results cannot be resumed as this baseline.
 
 ```powershell
 python run_uniform32.py --run-id qwen25vl7b_uniform32_baseline
@@ -79,7 +79,7 @@ python run_uniform32.py --run-id qwen25vl7b_uniform32_baseline
 python run_uniform32.py --run-id qwen25vl7b_uniform32_baseline --resume
 ```
 
-All modes use 32 base frames per answer. Fixed versions are documented in [`deployment/CODE_VERSIONS.md`](deployment/CODE_VERSIONS.md).
+Agentic uses a 32-frame base answer budget; the uniform baseline uses up to 32 frames. Fixed versions are documented in [`deployment/CODE_VERSIONS.md`](deployment/CODE_VERSIONS.md).
 
 ## News
 🎉 Accepted as an oral presentation at ACL 2025!
