@@ -1,6 +1,4 @@
-"""
-confidence.py
-STRIVE 置信度与自适应重试模块。
+"""STRIVE 多次投票、置信度计算与低置信度自适应重试。
 
 STRIVE = (V * M)^alpha * E^beta * gamma_eff * delta_factor
 
