@@ -12,15 +12,24 @@
 
 ## 无水印均匀 32 帧基准（2026-10-29）
 
-- 当前固定标签：`uniform32-no-watermark-20261029`，维护分支继续使用 `main`。
-- 独立入口：`python run_uniform32.py --run-id <RUN_ID>`；续跑增加 `--resume`。长视频包含首尾帧等间隔取 32 帧；视频不足 32 帧时上传全部原始帧，包括只有 1 帧的视频。
+- 拆分前固定标签：`uniform32-no-watermark-20261029`（目录布局保留该标签当时的结构），维护分支继续使用 `main`。
+- 独立入口：从 `uniform32/` 目录执行 `python run_uniform32.py --run-id <RUN_ID>`；续跑增加 `--resume`。长视频包含首尾帧等间隔取 32 帧；视频不足 32 帧时上传全部原始帧，包括只有 1 帧的视频。
 - 图像直接 JPEG 编码，不绘制帧号、秒数或任何水印。CSV 元信息保留采样下标、总帧数、实际输入帧数与 `watermark=false`；这些元信息不叠加到图像。
 - CSV 策略名为 `uniform_32_no_watermark_no_vote`，与此前带水印版本区分；每题单次回答，不执行检索规划、CLIP、VLM 重排或 STRIVE。
-- `run.py` 保持指定提交 `9f0b9cdb324bdc62ad3b46b632d46c73c9bb09dd` 的 Agentic 源码。均匀入口不导入或改写该文件。
-- Agentic CSV 默认在 `result/`，均匀基准 CSV、last_run_id 默认在 `result/uniform32/`，也可用 `--result-dir` 指定目录。看板仍按不同 RUN_ID 使用独立 SQLite 文件；本轮未改前端或后端。
+- `agentic/run.py` 保持指定提交 `9f0b9cdb324bdc62ad3b46b632d46c73c9bb09dd` 的源码。均匀代码独立位于 `uniform32/`，只共享数据集和模型服务，不导入 Agentic/STRIVE 模块。
+- Agentic 结果与看板数据库位于 `agentic/result/`；均匀基准结果与看板数据库位于 `uniform32/result/`。两者互不共用结果文件。
 - 脚本改编自用户提供的 `latest_model_32frame_benchmark_test.py`，复用逐题推理、保存与续跑结构，使用环境变量配置、项目 Prompt 与 A–G 答案提取。原始响应和失败原因分别保存为 RawOutput、Error。
 - 本次停止并删除此前带水印的 `qwen25vl7b_uniform32_baseline_20261029_170215` 实验记录，不保留实验结果备份，不自动启动新实验。历史代码标签 `uniform32-baseline-20261029`、`uniform32-standalone-20261029` 保留原提交，不移动。
 - 验证覆盖原图 JPEG 字节无水印、长视频 32 帧、1/17/31/32 帧视频全部输入、单次调用、失败题续跑及原有 Agentic 行为。
+
+## 独立实验目录（2026-10-29）
+
+- 固定标签：`agentic-uniform32-folders-20261029`，旧标签不移动。
+- 服务器部署校验记录：`D:\VLM\syf\code-backups\agentic-uniform32-deployed.json`。
+
+- `agentic/` 与 `uniform32/` 分别保存完整实验入口、依赖、看板、评估和测试；进入对应目录后运行，结果分别保存在各自的 `result/`。
+- 两套代码共享仓库根目录数据集和模型服务。服务器以 `agentic/dataset`、`uniform32/dataset` 目录联接引用同一份 `../dataset`，不复制视频。
+- 均匀基准另含精简 `answers.py`，仅解析 A–G，不导入 Agentic/STRIVE 实现。
 
 ## 旧版：12 类 Agentic 检索 + 4 类原始 STRIVE
 
@@ -48,7 +57,7 @@
 
 ### 帧数确认
 
-基础回答预算是 **32 帧**（`run.py::BASE_N_FRAMES`），两种模式均使用此预算；STRIVE 每轮 K=3，每票各使用基础预算，重试时仍按原有逻辑增加到 48 或 64 帧。
+基础回答预算是 **32 帧**（`agentic/run.py::BASE_N_FRAMES`），两种模式均使用此预算；STRIVE 每轮 K=3，每票各使用基础预算，重试时仍按原有逻辑增加到 48 或 64 帧。
 
 代码中其他数字对应不同阶段：规划概览 8 帧、全局覆盖候选池 16 帧、重排最多输入 42 张缩略图并选出最多 16 个候选。它们都不是最终回答帧数。
 
@@ -64,7 +73,7 @@
 
 新版实验使用新的 RUN_ID，避免将旧混合路由结果和新版结果写入同一个 CSV。旧结果与缓存不随代码更新覆盖；本次不自动启动全量实验。
 
-回归检查（不调用真实模型）：
+以下回归检查从 `agentic/` 目录运行（不调用真实模型）；均匀基准在 `uniform32/` 目录运行其 Python 检查：
 
 ```powershell
 python -m unittest discover -s tests -v
