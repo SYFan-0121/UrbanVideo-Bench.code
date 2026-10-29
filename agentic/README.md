@@ -8,7 +8,7 @@
 python -m pip install -r requirements.txt
 $env:AGENTIC_GLOBAL_MODE = 'strive'  # 或 no_vote
 $env:RUN_ID = 'agentic_experiment_name'
-python run.py
+python launch.py run.py
 ```
 
-验证：`python -m unittest discover -s tests -v`；前端看板测试：`node --test tests/dashboard.test.cjs`。
+验证：`python launch.py -m unittest discover -s tests -v`；前端看板测试：`node --test tests/dashboard.test.cjs`。

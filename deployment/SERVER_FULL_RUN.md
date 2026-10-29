@@ -166,7 +166,7 @@ $env:AGENTIC_RETRIEVAL_EMBED_MODEL = 'clip-ViT-B-32'
 $env:AGENTIC_RETRIEVAL_DEVICE = 'cpu'
 $env:RUN_ID = 'qwen25vl7b_full_server_agentic'
 $env:RUN_MODE = 'new'
-& "$PythonHome\python.exe" .\run.py
+& "$PythonHome\python.exe" .\launch.py run.py
 ```
 
 Agentic 的 CSV、看板数据库和评估表分别保存在 `agentic\result\`。均匀基准需进入 `uniform32` 目录运行 `run_uniform32.py`，其结果独立保存在 `uniform32\result\`。改变模型、帧数、分辨率、Agentic 开关或提示词时使用新的 `RUN_ID`，不要覆盖已有实验。当前 `run.py` 默认运行 Agentic 检索策略；它不是纯均匀抽帧基线，论文里应按实际策略命名。基线和消融应使用明确独立的参数/分支与 `RUN_ID`。
@@ -174,7 +174,7 @@ Agentic 的 CSV、看板数据库和评估表分别保存在 `agentic\result\`�
 评估：
 
 ```powershell
-& "$PythonHome\python.exe" .\eval.py
+& "$PythonHome\python.exe" .\launch.py eval.py
 ```
 
 运行前后保存环境和 Git 提交号，论文中报告它们：

@@ -13,7 +13,7 @@
 ## 无水印均匀 32 帧基准（2026-10-29）
 
 - 拆分前固定标签：`uniform32-no-watermark-20261029`（目录布局保留该标签当时的结构），维护分支继续使用 `main`。
-- 独立入口：从 `uniform32/` 目录执行 `python run_uniform32.py --run-id <RUN_ID>`；续跑增加 `--resume`。长视频包含首尾帧等间隔取 32 帧；视频不足 32 帧时上传全部原始帧，包括只有 1 帧的视频。
+- 独立入口：从 `uniform32/` 目录执行 `python launch.py run_uniform32.py --run-id <RUN_ID>`；续跑增加 `--resume`。长视频包含首尾帧等间隔取 32 帧；视频不足 32 帧时上传全部原始帧，包括只有 1 帧的视频。
 - 图像直接 JPEG 编码，不绘制帧号、秒数或任何水印。CSV 元信息保留采样下标、总帧数、实际输入帧数与 `watermark=false`；这些元信息不叠加到图像。
 - CSV 策略名为 `uniform_32_no_watermark_no_vote`，与此前带水印版本区分；每题单次回答，不执行检索规划、CLIP、VLM 重排或 STRIVE。
 - `agentic/run.py` 保持指定提交 `9f0b9cdb324bdc62ad3b46b632d46c73c9bb09dd` 的源码。均匀代码独立位于 `uniform32/`，只共享数据集和模型服务，不导入 Agentic/STRIVE 模块。
@@ -76,7 +76,7 @@
 以下回归检查从 `agentic/` 目录运行（不调用真实模型）；均匀基准在 `uniform32/` 目录运行其 Python 检查：
 
 ```powershell
-python -m unittest discover -s tests -v
+python launch.py -m unittest discover -s tests -v
 node --test tests/dashboard.test.cjs
 ```
 

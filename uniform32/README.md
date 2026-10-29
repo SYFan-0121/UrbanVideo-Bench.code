@@ -6,13 +6,13 @@
 
 ```powershell
 python -m pip install -r requirements.txt
-python run_uniform32.py --run-id uniform32_experiment_name
+python launch.py run_uniform32.py --run-id uniform32_experiment_name
 ```
 
 中断续跑：
 
 ```powershell
-python run_uniform32.py --run-id uniform32_experiment_name --resume
+python launch.py run_uniform32.py --run-id uniform32_experiment_name --resume
 ```
 
-验证：`python -m unittest discover -s tests -v`。
+验证：`python launch.py -m unittest discover -s tests -v`。

@@ -218,7 +218,7 @@ $env:RUN_MODE = 'new'
 & .\venv\Scripts\python.exe deployment\smoke_test.py
 # 分级测试通过并准备正式运行后，再执行下面这行：
 Set-Location .\agentic
-& ..\venv\Scripts\python.exe run.py
+& ..\venv\Scripts\python.exe launch.py run.py
 ```
 
 若服务设置了 `VLM_API_KEY`，本机也需设置同名变量；此时适配器优先使用该 key。本地回环端点不会优先拿遗留的 Dashscope key。这里的 `VLM_PROVIDER=qwen` 只是复用项目的 Qwen 消息适配代码；URL 已经指向本地服务，请求不会发送给 Dashscope。

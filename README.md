@@ -33,6 +33,8 @@ The benchmark is designed to evaluate whether video-large language models (Video
 服务器 `agentic/dataset` 与 `uniform32/dataset` 都联接到仓库根目录的 `dataset/`，不复制视频。建立联接的方法见 [服务器流程](deployment/SERVER_FULL_RUN.md)。
 `agentic/run.py` 保持指定提交 `9f0b9cdb324bdc62ad3b46b632d46c73c9bb09dd` 的原始字节；均匀基准不导入 Agentic/STRIVE。
 
+服务器使用固定导入路径的便携式 Python，统一通过各自的 `launch.py` 启动。启动器只调整当前进程的工作目录和导入路径，不修改共享 Python 环境。
+
 ## 文件功能索引
 
 GitHub 文件列表右侧显示的是该路径最近一次提交的说明。本次用文件功能作为相应提交说明；以后修改文件时，该列会显示新的提交说明。下表提供持续维护的功能索引。
@@ -54,6 +56,7 @@ GitHub 文件列表右侧显示的是该路径最近一次提交的说明。本�
 | [`agentic/question_generation/MCQ_generation_basic.py`](agentic/question_generation/MCQ_generation_basic.py) | 提取视频运动及物体信息，生成基础感知与推理选择题 |
 | [`agentic/question_generation/MCQ_generation_goal.py`](agentic/question_generation/MCQ_generation_goal.py) | 结合视频与目标地点生成目标导航选择题 |
 | [`agentic/question_generation/MCQ_generation_route.py`](agentic/question_generation/MCQ_generation_route.py) | 结合视频与移动指令生成路线导航选择题 |
+| [`agentic/launch.py`](agentic/launch.py)、[`uniform32/launch.py`](uniform32/launch.py) | 为便携式 Python 设置本目录导入路径并启动脚本或测试 |
 | [`uniform32/answers.py`](uniform32/answers.py) | 独立提取 A–G 答案，不导入 STRIVE |
 | [`uniform32/requirements.txt`](uniform32/requirements.txt) | 均匀基准客户端、数据与看板依赖 |
 | [`agentic/requirements.txt`](agentic/requirements.txt) | Agentic 客户端、数据、CLIP 与看板依赖 |
@@ -84,14 +87,14 @@ The current inference code reads provider configuration from environment variabl
 
 Use a distinct `RUN_ID` for every baseline or ablation. This keeps CSV, dashboard SQLite, and evaluation outputs separate while the Git commit records the exact code version.
 
-From `agentic/`, use `python run.py` for Agentic experiments: all 16 categories use Agentic retrieval, with `AGENTIC_GLOBAL_MODE=strive` or `AGENTIC_GLOBAL_MODE=no_vote`. This file is restored exactly from commit `9f0b9cdb324bdc62ad3b46b632d46c73c9bb09dd`.
+From `agentic/`, use `python launch.py run.py` for Agentic experiments: all 16 categories use Agentic retrieval, with `AGENTIC_GLOBAL_MODE=strive` or `AGENTIC_GLOBAL_MODE=no_vote`. This file is restored exactly from commit `9f0b9cdb324bdc62ad3b46b632d46c73c9bb09dd`.
 
 From `uniform32/`, use the separate `run_uniform32.py` for the full-video uniform 32-frame baseline. It adapts the supplied `latest_model_32frame_benchmark_test.py`: serial question processing, one answer call, per-question CSV saves and resume. For videos longer than 32 frames, it samples 32 frames including both endpoints; for shorter videos, it uploads every frame. It encodes the original images without frame-number or time watermarks, uses the project prompts and A–G option handling, and reads API configuration from the environment. It does not import or modify `run.py`. Results and dashboard databases are saved under `uniform32/result/`, separate from `agentic/result/`. Original responses are saved in `RawOutput`; genuine decoding or inference failures remain eligible for resume. The strategy is `uniform_32_no_watermark_no_vote`, so watermarked results cannot be resumed as this baseline.
 
 ```powershell
-python run_uniform32.py --run-id qwen25vl7b_uniform32_baseline
+python launch.py run_uniform32.py --run-id qwen25vl7b_uniform32_baseline
 # Resume this baseline; the model and input configuration must remain the same.
-python run_uniform32.py --run-id qwen25vl7b_uniform32_baseline --resume
+python launch.py run_uniform32.py --run-id qwen25vl7b_uniform32_baseline --resume
 ```
 
 Agentic uses a 32-frame base answer budget; the uniform baseline uses up to 32 frames. Fixed versions are documented in [`deployment/CODE_VERSIONS.md`](deployment/CODE_VERSIONS.md).
@@ -193,19 +196,19 @@ Configure the VLM provider with environment variables, then enter **one** experi
 ```powershell
 Set-Location agentic
 $env:AGENTIC_GLOBAL_MODE = 'strive'  # or no_vote
-python run.py
+python launch.py run.py
 ```
 
 For the uniform baseline, enter `uniform32/` from the repository root instead:
 
 ```powershell
 Set-Location uniform32
-python run_uniform32.py --run-id uniform32_experiment_name
+python launch.py run_uniform32.py --run-id uniform32_experiment_name
 ```
 
 ### Evaluation
 
-Run `python eval.py <result.csv>` inside the experiment directory. Each directory's `result/` holds only that experiment family's CSV, Excel reports and dashboard history. Model service setup is shared under `deployment/`.
+Run `python launch.py eval.py <result.csv>` inside the experiment directory. Each directory's `result/` holds only that experiment family's CSV, Excel reports and dashboard history. Model service setup is shared under `deployment/`.
 
 ## Acknowledgements
 
