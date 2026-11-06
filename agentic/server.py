@@ -740,13 +740,16 @@ def update():
     run_id = safe_run_id(data.get("run_id"))
     data["updated_at"] = time.time()
     qa_idx = _safe_int(data.get("qa_idx"), -1)
+    status = str(data.get("status") or "").strip().lower()
+    failed = status == "failed"
     completed = data.get("model_answer") is not None
+    terminal = completed or failed
 
     with _state_lock:
         latest_states[run_id] = data
-        if qa_idx >= 0 and not completed:
+        if qa_idx >= 0 and not terminal:
             active_states[(run_id, qa_idx)] = data
-        elif qa_idx >= 0 and completed:
+        elif qa_idx >= 0 and terminal:
             active_states.pop((run_id, qa_idx), None)
 
     if completed:

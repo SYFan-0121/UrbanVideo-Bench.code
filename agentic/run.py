@@ -459,8 +459,14 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
         if not video.isOpened():
             log_progress(qa_idx, f"Error: Cannot open {select_vid_name}")
             with _lock:
-                res.at[qa_idx, 'Output'] = None
+                res.at[qa_idx, 'Output'] = 'Option: [None]'
                 res.to_csv(res_path)
+            emit_to_dashboard({
+                **dashboard_payload,
+                "status": "failed",
+                "stage": "处理失败，已记录为待续跑",
+                "error": f"Cannot open {select_vid_name}",
+            })
             return
         total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
         video.release()
@@ -670,12 +676,24 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
         _fatal_event.set()
         with _lock:
             res.to_csv(res_path)
+        emit_to_dashboard({
+            **dashboard_payload,
+            "status": "failed",
+            "stage": "处理失败，已记录为待续跑",
+            "error": str(e),
+        })
 
     except Exception as e:
         print(f"[#{qa_idx}] Error: {e}")
         with _lock:
             res.at[qa_idx, 'Output'] = 'Option: [None]'
             res.to_csv(res_path)
+        emit_to_dashboard({
+            **dashboard_payload,
+            "status": "failed",
+            "stage": "处理失败，已记录为待续跑",
+            "error": str(e),
+        })
         time.sleep(2)
 
     finally:
@@ -684,13 +702,11 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
 
 
 if __name__ == '__main__':
-    # 并发处理多个 QA；每个 QA 内部可能还有 K=3 并发 VLM 投票。
+    # 题目级串行处理；每题内部的 STRIVE K=3 投票也按顺序执行。
     _lock = threading.Lock()
     _fatal_event = threading.Event()
-    # A single local GPU should be driven serially. Keep the historical
-    # default for cloud runs, and set VLM_OUTER_CONCURRENCY=1 for the Windows
-    # server service.
-    CONCURRENCY = max(1, int(os.environ.get("VLM_OUTER_CONCURRENCY", "4")))
+    # 单张 GPU 默认只处理一道题；保留环境变量以便明确覆盖并发度。
+    CONCURRENCY = max(1, int(os.environ.get("VLM_OUTER_CONCURRENCY", "1")))
     # "no_vote" = scheme A; "strive" = scheme B.
     AGENTIC_GLOBAL_MODE = os.environ.get("AGENTIC_GLOBAL_MODE", "no_vote").strip().lower()
     if AGENTIC_GLOBAL_MODE not in {"no_vote", "strive"}:
@@ -788,7 +804,7 @@ if __name__ == '__main__':
     _total_processed_ref = [_total_processed]
     _correct_count_ref   = [_correct_count]
 
-    print(f'Start concurrent processing, concurrency: {CONCURRENCY}')
+    print(f'Start processing, concurrency: {CONCURRENCY}')
     with ThreadPoolExecutor(max_workers=CONCURRENCY) as executor:
         futures = {
             executor.submit(

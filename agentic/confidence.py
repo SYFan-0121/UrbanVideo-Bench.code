@@ -23,7 +23,6 @@ from collections import Counter
 from openai import OpenAI
 from prompts import build_prompt, detect_num_options
 from vlm_api import vlm_chat_completion
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 def _console_log(qa_idx, message):
@@ -270,7 +269,7 @@ def compute_strive(
 # 6. 带置信度的主推理函数
 # ────────────────────────────────────────────────────────────
 # STRIVE 主流程。
-# 它负责抽 K 组帧、并发调用模型投票、计算置信度，并在低分时决定是否重采样或重新定位。
+# 它负责抽 K 组帧、串行调用模型投票、计算置信度，并在低分时决定是否重采样或重新定位。
 def confident_answer(
     client: OpenAI,
     model: str,
@@ -342,7 +341,7 @@ def confident_answer(
         )
         for vote_id, (s, e) in enumerate(sample_windows, start=1):
             _console_log(qa_idx, f"[STRIVE] Sampling vote {vote_id}: window=[{s:.2f}, {e:.2f}]")
-        # 先串行完成抽帧，再并行调用 VLM；避免多个线程同时操作同一个视频对象。
+        # 先串行完成抽帧，再按顺序调用 VLM；避免多个请求同时占用 GPU。
         pre_sampled_frames = []
         for s, e in sample_windows:
             frames = sample_func(video, total_frames, s, e, n=current_n)
@@ -372,8 +371,8 @@ def confident_answer(
             update_payload['retry_count'] = retry_count
             emit_to_dashboard_func(update_payload)
 
-        # ── 并行投票：K=3 次同时发起 API 请求 ──────────────────
-        # 注意：此处只处理已采样的帧，不再访问视频对象，完全避免线程冲突
+        # ── 串行投票：K=3 次依次发起 API 请求 ──────────────────
+        # 注意：每次仍使用完整帧集和原始分辨率，只降低并发峰值。
         def _single_vote(vote_id, frames):
             """单次 VLM 投票：构造 Prompt + 帧输入，返回选项、自评分和原始输出。"""
             if not frames:
@@ -414,19 +413,15 @@ def confident_answer(
                 _console_log(qa_idx, f"[STRIVE] Vote {vote_id}: API error during voting: {e}")
                 return None, None, ""
 
-        # 并行发起 K 次投票（基于预采样的帧）
-        _console_log(qa_idx, f"[STRIVE] Launching {K} parallel VLM votes.")
-        with ThreadPoolExecutor(max_workers=K) as executor:
-            futures = [
-                executor.submit(_single_vote, vote_id, frames)
-                for vote_id, frames in enumerate(pre_sampled_frames, start=1)
-            ]
-            votes, self_scores, raw_outputs = [], [], []
-            for future in as_completed(futures):
-                option, self_score, raw = future.result()  # RuntimeError 会在此处传播
-                votes.append(option)
-                self_scores.append(self_score)
-                raw_outputs.append(raw)
+        # 逐次发起 K 次投票。每次请求仍使用完整的 n_frames 和原始图像分辨率，
+        # 但不会把多个 32 帧请求同时压入单张 GPU，避免投票阶段显存峰值过高。
+        _console_log(qa_idx, f"[STRIVE] Launching {K} serial VLM votes.")
+        votes, self_scores, raw_outputs = [], [], []
+        for vote_id, frames in enumerate(pre_sampled_frames, start=1):
+            option, self_score, raw = _single_vote(vote_id, frames)
+            votes.append(option)
+            self_scores.append(self_score)
+            raw_outputs.append(raw)
 
         # ── 投票结束后，立即计算 STRIVE ──
         strive, breakdown = compute_strive(
