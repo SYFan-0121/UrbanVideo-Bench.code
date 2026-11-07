@@ -362,8 +362,11 @@ function renderRunStatus() {
   }
   const progress = Number.isFinite(total) && total > 0 && Number.isFinite(processed)
     ? `${processed}/${total}` : '-';
-  const stateText = {running: '运行中', completed: '全部完成', stopped: '已停止，待续跑', failed: '失败，待续跑'}[state] || state;
-  setText('run-status', `${stateText} ${progress}${state === 'running' && Number.isFinite(pending) ? `，待处理 ${pending}` : ''}`);
+  const countersConfirmCompletion = total > 0 && pending === 0 && processed >= total;
+  const displayState = state === 'completed' && !countersConfirmCompletion
+    ? (pending > 0 ? 'stopped' : 'running') : state;
+  const stateText = {running: '运行中', completed: '全部完成', stopped: '已停止，待续跑', failed: '失败，待续跑'}[displayState] || displayState;
+  setText('run-status', `${stateText} ${progress}${displayState === 'running' && Number.isFinite(pending) ? `，待处理 ${pending}` : ''}`);
 }
 
 function renderLatestCompleted() {

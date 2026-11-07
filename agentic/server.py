@@ -136,6 +136,17 @@ def _safe_float(value, default=None):
         return default
 
 
+def _normalize_run_status(run_state, total_questions, processed_questions, pending_questions):
+    """Trust ``completed`` only when its counters prove full completion."""
+    state = str(run_state or "").strip().lower()
+    total = _safe_int(total_questions, 0)
+    processed = _safe_int(processed_questions, 0)
+    pending = _safe_int(pending_questions, 0)
+    if state == "completed" and (total <= 0 or pending != 0 or processed < total):
+        state = "stopped" if pending > 0 or total > 0 else "running"
+    return state, total, processed, pending
+
+
 def _json_dumps(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
@@ -758,12 +769,18 @@ def update():
 
     run_state = str(data.get("run_state") or "").strip().lower()
     if run_state in {"running", "completed", "stopped", "failed"}:
+        run_state, total_questions, processed_questions, pending_questions = _normalize_run_status(
+            run_state,
+            data.get("total_questions"),
+            data.get("processed_questions"),
+            data.get("pending_questions"),
+        )
         status_payload = {
             "run_id": run_id,
             "run_state": run_state,
-            "total_questions": _safe_int(data.get("total_questions"), 0),
-            "processed_questions": _safe_int(data.get("processed_questions"), 0),
-            "pending_questions": _safe_int(data.get("pending_questions"), 0),
+            "total_questions": total_questions,
+            "processed_questions": processed_questions,
+            "pending_questions": pending_questions,
             "updated_at": data["updated_at"],
         }
         with _state_lock:

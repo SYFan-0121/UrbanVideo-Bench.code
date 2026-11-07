@@ -161,6 +161,13 @@ def emit_to_dashboard(payload: dict):
         print(f"[dashboard] update skipped: {exc}")
 
 
+def pending_question_count(frame):
+    """Count unanswered rows using the same rule for progress and resume."""
+    output = frame["Output"]
+    output_text = output.astype(str).str.strip()
+    return int((output.isna() | (output_text == "") | output_text.str.contains(r"\[None\]", na=False)).sum())
+
+
 # 给每张抽出的帧写上原始帧号和视频时间。
 # 这样大模型和人工回看都能知道这张图来自视频哪个位置。
 def add_timestamp_watermark(frame, frame_idx, total_frames, fps):
@@ -645,6 +652,7 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
                 if final_answer and final_answer.strip().upper() == correct:
                     _correct_count_ref[0] += 1
             res.to_csv(res_path)
+            pending_now = pending_question_count(res)
             if 'answer' in res.columns and _total_processed_ref[0] > 0:
                 acc = _correct_count_ref[0] / _total_processed_ref[0]
                 log_progress(
@@ -669,6 +677,10 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
             "strive": breakdown,
             "retry_count": retry_count,
             "retrieval_strategy": initial_strategy,
+            "run_state": "running",
+            "total_questions": int(len(res)),
+            "processed_questions": int(len(res) - pending_now),
+            "pending_questions": int(pending_now),
         })
 
     except RuntimeError as e:
@@ -812,7 +824,7 @@ if __name__ == '__main__':
             "stage": "实验运行中" if run_state == "running" else "实验已完成" if run_state == "completed" else "实验已停止，等待续跑",
         })
 
-    emit_run_status("running", len(valid_indices))
+    emit_run_status("running", pending_question_count(res))
 
     _total_processed_ref = [_total_processed]
     _correct_count_ref   = [_correct_count]
@@ -840,11 +852,6 @@ if __name__ == '__main__':
                 except Exception as e:
                     print(f"Worker exception: {e}")
     finally:
-        output_str = res['Output'].astype(str).str.strip()
-        pending_after = int((
-            res['Output'].isna() |
-            (output_str == '') |
-            output_str.str.contains(r'\[None\]', na=False)
-        ).sum())
+        pending_after = pending_question_count(res)
         emit_run_status("completed" if pending_after == 0 else "stopped", pending_after)
         print(f"Run finished with state={'completed' if pending_after == 0 else 'stopped'}; pending={pending_after}", flush=True)
