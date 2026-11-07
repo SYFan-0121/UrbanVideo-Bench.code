@@ -802,6 +802,16 @@ def update():
         is_new_result = upsert_result(history_item)
         if is_new_result:
             save_history_jsonl_compat(history_item)
+            with _state_lock:
+                run_status = run_status_by_run.get(run_id)
+                if run_status and run_status.get("run_state") == "running":
+                    total = _safe_int(run_status.get("total_questions"), 0)
+                    processed = min(total, _safe_int(run_status.get("processed_questions"), 0) + 1)
+                    run_status.update({
+                        "processed_questions": processed,
+                        "pending_questions": max(0, total - processed),
+                        "updated_at": data["updated_at"],
+                    })
         latest_completed_by_run[run_id] = history_item
         socketio.emit("completed_update", history_item)
         if is_new_result:
@@ -810,8 +820,10 @@ def update():
     socketio.emit("state_update", data)
     socketio.emit("active_queue_update", {"run_id": run_id, "active": active_queue(run_id)})
     socketio.emit("runs_update", {"runs": list_runs()})
-    if run_state in {"running", "completed", "stopped", "failed"}:
-        socketio.emit("run_status_update", run_status_by_run[run_id])
+    with _state_lock:
+        current_run_status = dict(run_status_by_run.get(run_id) or {})
+    if current_run_status:
+        socketio.emit("run_status_update", current_run_status)
     return jsonify({"status": "ok"})
 
 
