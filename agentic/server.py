@@ -763,8 +763,8 @@ def update():
     data["updated_at"] = time.time()
     qa_idx = _safe_int(data.get("qa_idx"), -1)
     status = str(data.get("status") or "").strip().lower()
-    failed = status == "failed"
-    completed = data.get("model_answer") is not None
+    completed = bool(re.fullmatch(r"[A-G]", str(data.get("model_answer") or "").strip().upper()))
+    failed = status == "failed" or ("model_answer" in data and not completed)
     terminal = completed or failed
 
     run_state = str(data.get("run_state") or "").strip().lower()
@@ -784,10 +784,7 @@ def update():
             "updated_at": data["updated_at"],
         }
         with _state_lock:
-            previous = run_status_by_run.get(run_id, {})
-            for key in ("total_questions", "processed_questions", "pending_questions"):
-                if not status_payload[key] and previous.get(key) is not None:
-                    status_payload[key] = previous[key]
+            # 计数由评测进程根据 CSV 计算；0 是合法值，不能用旧值覆盖。
             run_status_by_run[run_id] = status_payload
 
     with _state_lock:
@@ -802,16 +799,6 @@ def update():
         is_new_result = upsert_result(history_item)
         if is_new_result:
             save_history_jsonl_compat(history_item)
-            with _state_lock:
-                run_status = run_status_by_run.get(run_id)
-                if run_status and run_status.get("run_state") == "running":
-                    total = _safe_int(run_status.get("total_questions"), 0)
-                    processed = min(total, _safe_int(run_status.get("processed_questions"), 0) + 1)
-                    run_status.update({
-                        "processed_questions": processed,
-                        "pending_questions": max(0, total - processed),
-                        "updated_at": data["updated_at"],
-                    })
         latest_completed_by_run[run_id] = history_item
         socketio.emit("completed_update", history_item)
         if is_new_result:

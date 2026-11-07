@@ -646,7 +646,9 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
             res.at[qa_idx, 'RunID'] = RUN_ID
             if retrieval_meta is not None:
                 res.at[qa_idx, 'RetrievalMeta'] = json.dumps(retrieval_meta, ensure_ascii=False)
-            _total_processed_ref[0] += 1
+            # 未解析出答案仍写 [None] 供续跑，但不能增加有效完成数。
+            if final_answer is not None:
+                _total_processed_ref[0] += 1
             if 'answer' in res.columns:
                 correct = str(res['answer'].loc[qa_idx]).strip().upper()
                 if final_answer and final_answer.strip().upper() == correct:
@@ -670,6 +672,7 @@ def process_one(qa_idx, res, res_path, folder_path, model, client,
             "question": qa,
             "correct_answer": str(res['answer'].loc[qa_idx]) if 'answer' in res.columns else None,
             "model_answer": final_answer,
+            "status": "completed" if final_answer is not None else "failed",
             "total_processed": _total_processed_ref[0],
             "correct_count":   _correct_count_ref[0],
             "accuracy": _correct_count_ref[0] / _total_processed_ref[0] if _total_processed_ref[0] > 0 else 0,
@@ -799,8 +802,7 @@ if __name__ == '__main__':
     # 已完成且不是 [None] 的题会被跳过，实现断点续跑。
 
     if os.path.exists(res_path) and 'answer' in res.columns:
-        done = res[res['Output'].notna() &
-                ~res['Output'].astype(str).str.contains(r'\[None\]', na=False)]
+        done = res[~pending_mask]
         _total_processed = len(done)
         _correct_count = (
             done['Output'].str.extract(r'\[([A-G])\]')[0].str.upper() ==
