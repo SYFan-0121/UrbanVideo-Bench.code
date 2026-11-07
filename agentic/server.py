@@ -836,10 +836,11 @@ def on_connect():
 
 
 if __name__ == "__main__":
+    port = int(os.environ.get("DASHBOARD_PORT", "5000"))
     print("=" * 64)
-    print("  UrbanVideo-Bench Dashboard -> http://localhost:5000")
+    print(f"  UrbanVideo-Bench Dashboard -> http://localhost:{port}")
     print(f"  Default RUN_ID: {DEFAULT_RUN_ID}")
     print(f"  Default SQLite: {db_file_for(DEFAULT_RUN_ID)}")
     print(f"  已完成历史: {db_count(DEFAULT_RUN_ID)} 条")
     print("=" * 64)
-    socketio.run(app, host="0.0.0.0", port=5000, debug=False, allow_unsafe_werkzeug=True)
+    socketio.run(app, host="0.0.0.0", port=port, debug=False, allow_unsafe_werkzeug=True)

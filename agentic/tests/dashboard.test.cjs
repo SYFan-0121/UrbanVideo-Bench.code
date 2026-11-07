@@ -9,10 +9,11 @@ const { test } = require('node:test');
 const html = fs.readFileSync(path.join(__dirname, '../templates/dashboard.html'), 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const renderQA = script.slice(script.indexOf('function renderQA('), script.indexOf('function renderFrames('));
+const renderRunStatus = script.slice(script.indexOf('function renderRunStatus()'), script.indexOf('function renderLatestCompleted()'));
 const helpers = script.slice(script.indexOf('function parseQuestion('));
-const elements = { 'qa-body': {}, 'qa-badge': {} };
+const elements = { 'qa-body': {}, 'qa-badge': {}, 'run-status': {} };
 const context = vm.createContext({ document: { getElementById: id => elements[id] } });
-vm.runInContext(renderQA + helpers, context);
+vm.runInContext(renderQA + renderRunStatus + helpers, context);
 
 const screenshotQuestion = 'Question: If you choose to fly above the rooftops, can you still reach the shop?\n' +
   'Choices: A. I can complete the task but will not see the shopfronts directly.\n' +
@@ -81,4 +82,18 @@ test('seventh option is highlighted and missing answers stay pending', () => {
   context.renderQA({ qa_idx: 1, question, correct_answer: 'G', model_answer: 'G' });
   assert.match(elements['qa-body'].innerHTML, /class="option correct"><span class="key">G/);
   assert.match(elements['qa-body'].innerHTML, /class="verdict ok"/);
+});
+
+test('a stale completed event stays running while questions remain active', () => {
+  context.runStatus = { run_state: 'completed', total_questions: 5355, processed_questions: 3403, pending_questions: 1952 };
+  context.activeQueue = [{ qa_idx: 202 }];
+  context.renderRunStatus();
+  assert.equal(elements['run-status'].textContent, '运行中 3403/5355，待处理 1952');
+});
+
+test('completed requires counters to confirm every question is processed', () => {
+  context.runStatus = { run_state: 'completed', total_questions: 5355, processed_questions: 5355, pending_questions: 0 };
+  context.activeQueue = [];
+  context.renderRunStatus();
+  assert.equal(elements['run-status'].textContent, '全部完成 5355/5355');
 });

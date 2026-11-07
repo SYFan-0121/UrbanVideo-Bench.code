@@ -364,7 +364,7 @@ function renderRunStatus() {
     ? `${processed}/${total}` : '-';
   const countersConfirmCompletion = total > 0 && pending === 0 && processed >= total;
   const displayState = state === 'completed' && !countersConfirmCompletion
-    ? (pending > 0 ? 'stopped' : 'running') : state;
+    ? (activeQueue.length > 0 || pending === 0 ? 'running' : 'stopped') : state;
   const stateText = {running: '运行中', completed: '全部完成', stopped: '已停止，待续跑', failed: '失败，待续跑'}[displayState] || displayState;
   setText('run-status', `${stateText} ${progress}${displayState === 'running' && Number.isFinite(pending) ? `，待处理 ${pending}` : ''}`);
 }
