@@ -99,6 +99,7 @@ button:disabled { background:var(--line2); border-color:var(--line2); cursor:not
     <div class="stat"><label>正确数</label><b id="top-correct">0</b></div>
     <div class="stat"><label>正确率</label><b id="top-acc">0.0%</b></div>
     <div class="stat"><label>当前算法</label><b id="top-strategy" style="font-size:12px">-</b></div>
+    <div class="stat"><label>实验进度</label><b id="run-status" style="font-size:12px">等待启动</b></div>
     <div class="status"><span class="dot" id="dot"></span><span id="status">等待连接</span></div>
   </header>
 
@@ -165,6 +166,7 @@ let availableRuns = [];
 let selectedMode = 'live';
 let selectedId = null;
 let activeQueue = [];
+let runStatus = {};
 let historyPage = 1;
 let historyTotalPages = 1;
 let historyItems = [];
@@ -192,6 +194,11 @@ socket.on('active_queue_update', data => {
   if (data.run_id && data.run_id !== currentRunId) return;
   activeQueue = data.active || [];
   renderActiveQueue();
+});
+socket.on('run_status_update', data => {
+  if (data.run_id && data.run_id !== currentRunId) return;
+  runStatus = data || {};
+  renderRunStatus();
 });
 socket.on('completed_update', item => {
   if (item.run_id && item.run_id !== currentRunId) return;
@@ -268,6 +275,8 @@ function loadRunState(runId) {
     liveData = data.latest_state || {};
     latestCompleted = data.latest_completed || {};
     activeQueue = data.active_queue || [];
+    runStatus = data.run_status || {};
+    renderRunStatus();
     renderActiveQueue();
     renderLatestCompleted();
     if (Object.keys(liveData).length) renderAll(liveData, 'live');
@@ -281,7 +290,8 @@ function updateRunSelector(runs, preferredRunId) {
   const select = document.getElementById('run-select');
   const selectedRunId = chooseRunId(runs, preferredRunId || select.value || currentRunId);
   select.innerHTML = runs.map(run => {
-    const label = `${run.run_id} (${run.history_total || 0}/${run.active_count || 0})`;
+    const total = run.total_questions || '?';
+    const label = `${run.run_id} (${run.history_total || 0}/${total})`;
     return `<option value="${escapeAttr(run.run_id)}">${esc(label)}</option>`;
   }).join('');
   if (runs.some(run => run.run_id === selectedRunId)) select.value = selectedRunId;
@@ -317,7 +327,7 @@ function renderActiveQueue() {
   setText('active-count', `${activeQueue.length} 个`);
   const list = document.getElementById('active-list');
   if (!activeQueue.length) {
-    list.innerHTML = '<div class="empty">暂无正在运行的题目</div>';
+    list.innerHTML = '<div class="empty">暂无正在运行的题目；这不表示全部题目已经完成</div>';
     return;
   }
   list.innerHTML = activeQueue.map(item => `
@@ -339,6 +349,21 @@ function renderActiveQueue() {
       });
     });
   });
+}
+
+function renderRunStatus() {
+  const state = runStatus.run_state;
+  const total = Number(runStatus.total_questions);
+  const processed = Number(runStatus.processed_questions);
+  const pending = Number(runStatus.pending_questions);
+  if (!state) {
+    setText('run-status', '等待启动');
+    return;
+  }
+  const progress = Number.isFinite(total) && total > 0 && Number.isFinite(processed)
+    ? `${processed}/${total}` : '-';
+  const stateText = {running: '运行中', completed: '全部完成', stopped: '已停止，待续跑', failed: '失败，待续跑'}[state] || state;
+  setText('run-status', `${stateText} ${progress}${state === 'running' && Number.isFinite(pending) ? `，待处理 ${pending}` : ''}`);
 }
 
 function renderLatestCompleted() {
@@ -635,7 +660,7 @@ function formatEvidenceMix(mix) {
 }
 function inferStage(d) {
   if (!d || !Object.keys(d).length) return '等待数据';
-  if (d.model_answer) return `已完成 #${d.qa_idx ?? '-'}`;
+  if (d.model_answer) return `最新题目已完成 #${d.qa_idx ?? '-'}`;
   const strategy = d.retrieval_strategy || strategyFromData(d) || '';
   if (String(strategy).startsWith('agentic_retrieval')) {
     if (d.retrieval_summary || d.strive_summary?.retrieval) return 'Agentic 召回完成，等待模型回答';

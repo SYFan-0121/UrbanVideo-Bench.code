@@ -801,27 +801,50 @@ if __name__ == '__main__':
     print('Pending QA items:', len(valid_indices))
     print(f'Resume accuracy source: {res_path}')
 
+    def emit_run_status(run_state, pending_questions):
+        """上报实验级状态；活动队列为空时前端不能把单题完成误判为全局完成。"""
+        emit_to_dashboard({
+            "run_id": RUN_ID,
+            "run_state": run_state,
+            "total_questions": int(len(res)),
+            "processed_questions": int(len(res) - pending_questions),
+            "pending_questions": int(pending_questions),
+            "stage": "实验运行中" if run_state == "running" else "实验已完成" if run_state == "completed" else "实验已停止，等待续跑",
+        })
+
+    emit_run_status("running", len(valid_indices))
+
     _total_processed_ref = [_total_processed]
     _correct_count_ref   = [_correct_count]
 
     print(f'Start processing, concurrency: {CONCURRENCY}')
-    with ThreadPoolExecutor(max_workers=CONCURRENCY) as executor:
-        futures = {
-            executor.submit(
-                process_one, qa_idx, res, res_path, folder_path, model, client,
-                AGENTIC_GLOBAL_MODE,
-                RUN_ID,
-                _lock, _fatal_event,
-                _total_processed_ref, _correct_count_ref
-            ): qa_idx
-            for qa_idx in valid_indices
-        }
-        for future in as_completed(futures):
-            if _fatal_event.is_set():
-                for f in futures:
-                    f.cancel()
-                break
-            try:
-                future.result()
-            except Exception as e:
-                print(f"Worker exception: {e}")
+    try:
+        with ThreadPoolExecutor(max_workers=CONCURRENCY) as executor:
+            futures = {
+                executor.submit(
+                    process_one, qa_idx, res, res_path, folder_path, model, client,
+                    AGENTIC_GLOBAL_MODE,
+                    RUN_ID,
+                    _lock, _fatal_event,
+                    _total_processed_ref, _correct_count_ref
+                ): qa_idx
+                for qa_idx in valid_indices
+            }
+            for future in as_completed(futures):
+                if _fatal_event.is_set():
+                    for f in futures:
+                        f.cancel()
+                    break
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"Worker exception: {e}")
+    finally:
+        output_str = res['Output'].astype(str).str.strip()
+        pending_after = int((
+            res['Output'].isna() |
+            (output_str == '') |
+            output_str.str.contains(r'\[None\]', na=False)
+        ).sum())
+        emit_run_status("completed" if pending_after == 0 else "stopped", pending_after)
+        print(f"Run finished with state={'completed' if pending_after == 0 else 'stopped'}; pending={pending_after}", flush=True)

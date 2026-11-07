@@ -44,6 +44,9 @@ latest_completed_by_run: dict[str, dict[str, Any]] = {}
 # active_states 只保存正在运行的题目。
 # key 是 (run_id, qa_idx)，这样不同实验和题号不会互相覆盖。
 active_states: dict[tuple[str, int], dict[str, Any]] = {}
+# run_status_by_run 保留实验级状态。活动队列为空只表示当前没有题目正在上报，
+# 不能据此推断整套题目已经完成；续跑进程异常退出时状态会保持为 running。
+run_status_by_run: dict[str, dict[str, Any]] = {}
 _state_lock = threading.RLock()
 _db_lock = threading.RLock()
 
@@ -617,11 +620,18 @@ def list_runs() -> list[dict[str, Any]]:
         run_ids.add(DEFAULT_RUN_ID)
     runs = []
     for rid in sorted(run_ids):
+        with _state_lock:
+            run_status = dict(run_status_by_run.get(rid) or {})
         runs.append({
             "run_id": rid,
             "db_path": db_file_for(rid),
             "history_total": db_count(rid),
             "active_count": len(active_queue(rid)),
+            "run_state": run_status.get("run_state"),
+            "total_questions": run_status.get("total_questions"),
+            "processed_questions": run_status.get("processed_questions"),
+            "pending_questions": run_status.get("pending_questions"),
+            "run_updated_at": run_status.get("updated_at"),
         })
     return runs
 
@@ -647,6 +657,7 @@ def get_state():
         "latest_completed": latest_completed_by_run.get(run_id) or db_latest_completed(run_id),
         "active_queue": active_queue(run_id),
         "history_total": db_count(run_id),
+        "run_status": dict(run_status_by_run.get(run_id) or {}),
         "runs": list_runs(),
     })
 
@@ -745,6 +756,23 @@ def update():
     completed = data.get("model_answer") is not None
     terminal = completed or failed
 
+    run_state = str(data.get("run_state") or "").strip().lower()
+    if run_state in {"running", "completed", "stopped", "failed"}:
+        status_payload = {
+            "run_id": run_id,
+            "run_state": run_state,
+            "total_questions": _safe_int(data.get("total_questions"), 0),
+            "processed_questions": _safe_int(data.get("processed_questions"), 0),
+            "pending_questions": _safe_int(data.get("pending_questions"), 0),
+            "updated_at": data["updated_at"],
+        }
+        with _state_lock:
+            previous = run_status_by_run.get(run_id, {})
+            for key in ("total_questions", "processed_questions", "pending_questions"):
+                if not status_payload[key] and previous.get(key) is not None:
+                    status_payload[key] = previous[key]
+            run_status_by_run[run_id] = status_payload
+
     with _state_lock:
         latest_states[run_id] = data
         if qa_idx >= 0 and not terminal:
@@ -765,6 +793,8 @@ def update():
     socketio.emit("state_update", data)
     socketio.emit("active_queue_update", {"run_id": run_id, "active": active_queue(run_id)})
     socketio.emit("runs_update", {"runs": list_runs()})
+    if run_state in {"running", "completed", "stopped", "failed"}:
+        socketio.emit("run_status_update", run_status_by_run[run_id])
     return jsonify({"status": "ok"})
 
 
@@ -776,6 +806,7 @@ def on_connect():
     if state:
         emit("state_update", state)
     emit("active_queue_update", {"run_id": run_id, "active": active_queue(run_id)})
+    emit("run_status_update", dict(run_status_by_run.get(run_id) or {}))
     latest_completed = latest_completed_by_run.get(run_id) or db_latest_completed(run_id)
     if latest_completed:
         emit("completed_update", latest_completed)
