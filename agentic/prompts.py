@@ -17,6 +17,14 @@ BASE_PREFIX = (
     "navigating through an urban environment. "
     "The frames below are sampled in chronological order from the video — "
     "earlier frames appear first and represent earlier moments in time.\n\n"
+    "SAMPLING CONTEXT: These are Agentic retrieval frames, not a uniform frame sample. "
+    "The system first plans the visual search, builds candidate pools from global, "
+    "scene-change, anchor, tail, and semantic retrieval results, and may rerank candidates "
+    "with a VLM before selecting the evidence frames. The selected frames can therefore "
+    "come from focused time windows, have uneven time gaps, and include nearby frames. "
+    "Do not assume that adjacent frames are equally spaced or that counting frames directly "
+    "measures elapsed time. Use the chronological order, visible scene or action changes, "
+    "and the frame timestamp label when it is visible.\n\n"
 )
 
 # ────────────────────────────────────────────────────────────
@@ -330,8 +338,10 @@ CATEGORY_PROMPTS = {
     # ── 11. Duration ─────────────────────────────────────────
     # 比较两个动作或阶段所用时间的长短。
     "Duration": (
-        "CONTEXT: The frames are UNIFORMLY SAMPLED from the video. "
-        "This means equal numbers of frames = equal amounts of real time.\n\n"
+        "CONTEXT: The frames were selected by Agentic retrieval. They are in chronological "
+        "order, but the time gaps between adjacent frames are not necessarily equal. "
+        "Some frames may be concentrated around semantically relevant actions, scene changes, "
+        "or the beginning or end of the video.\n\n"
         "YOUR TASK: Compare the TIME DURATION of two different actions or movement segments.\n\n"
         "STEP-BY-STEP REASONING GUIDE:\n"
         "  Step 1 — Identify the two segments being compared:\n"
@@ -340,18 +350,21 @@ CATEGORY_PROMPTS = {
         "  Step 2 — Locate each segment in the frame sequence:\n"
         "           • When does Segment A start and end (which frames)?\n"
         "           • When does Segment B start and end (which frames)?\n"
-        "  Step 3 — Count frames for each segment:\n"
-        "           Since sampling is uniform, more frames = longer duration.\n"
-        "           Count (or estimate) how many frames belong to each segment.\n"
-        "  Step 4 — Use visual cues to judge temporal length:\n"
-        "           • Large visual changes across many frames = longer duration\n"
-        "           • Small incremental changes across few frames = shorter duration\n"
-        "           • Rapid changes within very few frames = brief action\n"
+        "  Step 3 — Estimate each segment's time interval:\n"
+        "           Prefer the visible timestamp labels (for example, 't=12.4s') to identify "
+        "the start and end time of each segment. If a timestamp is not visible, infer the "
+        "interval from the ordered frame evidence and the video action sequence.\n"
+        "  Step 4 — Use visual cues to refine the boundaries:\n"
+        "           • Identify the first frame where the action clearly begins.\n"
+        "           • Identify the last frame where the action is still occurring.\n"
+        "           • Use gradual movement and scene changes to avoid confusing a pause with "
+        "the end of an action.\n"
         "  Step 5 — Compare and select:\n"
-        "           Which segment spans more frames? That one took longer.\n"
-        "           If they span roughly the same number of frames, they are approximately equal.\n\n"
-        "IMPORTANT: Do not rely on subjective impression of speed. "
-        "Count the frames systematically.\n"
+        "           Compare the estimated elapsed seconds for the two segments. Select the "
+        "segment with the longer time interval. Do not select based only on which segment has "
+        "more sampled frames.\n\n"
+        "IMPORTANT: Agentic retrieval can make the number of sampled frames a poor proxy for "
+        "duration. Use timestamps and temporal evidence whenever available.\n"
     ),
 
     # ── 12. Object Recall ────────────────────────────────────
