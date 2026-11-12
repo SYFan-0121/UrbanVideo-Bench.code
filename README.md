@@ -98,7 +98,7 @@ python launch.py run_uniform32.py --run-id qwen25vl7b_uniform32_baseline
 python launch.py run_uniform32.py --run-id qwen25vl7b_uniform32_baseline --resume
 ```
 
-Agentic uses a 32-frame base answer budget; the uniform baseline uses up to 32 frames. Fixed versions are documented in [`deployment/CODE_VERSIONS.md`](deployment/CODE_VERSIONS.md).
+Agentic uses a 16-frame base answer budget; STRIVE retries can increase this to 24 or 32 frames. The uniform baseline uses up to 32 frames. Fixed versions are documented in [`deployment/CODE_VERSIONS.md`](deployment/CODE_VERSIONS.md).
 
 ## News
 🎉 Accepted as an oral presentation at ACL 2025!
