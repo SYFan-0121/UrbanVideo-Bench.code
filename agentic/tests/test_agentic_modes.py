@@ -1,4 +1,4 @@
-"""检查全部 16 类的两种 Agentic 模式、32 帧预算与结果保存。"""
+"""检查全部 16 类的两种 Agentic 模式、16 帧预算与结果保存。"""
 
 from contextlib import redirect_stdout
 import io
@@ -17,7 +17,7 @@ import run
 
 class AgenticModeTests(unittest.TestCase):
     def check_category(self, category, mode, final_answer="A"):
-        frames = [f"frame-{i}" for i in range(32)]
+        frames = [f"frame-{i}" for i in range(16)]
         results = pd.DataFrame([{
             "video_id": "sample.mp4", "question_category": category,
             "question": "Question: Where?\nChoices: A. Here\nB. There\nC. Elsewhere",
@@ -42,7 +42,7 @@ class AgenticModeTests(unittest.TestCase):
             patch.object(run, "stage1_locate") as locate,
             patch.object(run, "AgenticRetrievalContext") as context,
             patch.object(run, "sample_frames_agentic_retrieval",
-                         return_value=(frames, {"selected_indices": list(range(32))})) as retrieve,
+                         return_value=(frames, {"selected_indices": list(range(16))})) as retrieve,
             patch.object(run, "answer_once_with_frames", return_value=(final_answer, frames, f"Option: [{final_answer}]")) as answer,
             patch.object(run, "confident_answer", side_effect=vote_once) as vote,
         ):
@@ -71,13 +71,13 @@ class AgenticModeTests(unittest.TestCase):
                 answer.assert_called_once()
                 retrieve.assert_called_once()
                 self.assertEqual(retrieve.call_args.kwargs["qa_category"], category)
-                self.assertEqual(retrieve.call_args.kwargs["n_frames"], 32)
+                self.assertEqual(retrieve.call_args.kwargs["n_frames"], 16)
             else:
                 answer.assert_not_called()
                 context.assert_called_once()
                 self.assertEqual(context.call_args.kwargs["qa_category"], category)
                 vote.assert_called_once()
-                self.assertEqual(vote.call_args.kwargs["n_frames"], 32)
+                self.assertEqual(vote.call_args.kwargs["n_frames"], 16)
                 self.assertEqual(vote.call_args.kwargs["K"], 3)
                 self.assertEqual([call.kwargs["variant_id"] for call in retrieve.call_args_list], [0, 1, 2])
                 self.assertEqual(

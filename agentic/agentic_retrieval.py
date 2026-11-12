@@ -1078,7 +1078,7 @@ class AgenticRetrievalContext:
     # start_ratio/end_ratio 会在这里真正裁剪候选，保证时域扰动有效。
     def sample(
         self,
-        n_frames: int = 32,
+        n_frames: int = 16,
         variant_id: int = 0,
         start_ratio: float = 0.0,
         end_ratio: float = 1.0,
@@ -1250,7 +1250,7 @@ def sample_frames_agentic_retrieval(
     video_path: str,
     question: str,
     qa_category: str,
-    n_frames: int = 32,
+    n_frames: int = 16,
     client=None,
     model: str | None = None,
     cache_dir: str = DEFAULT_CACHE_DIR,

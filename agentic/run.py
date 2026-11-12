@@ -32,8 +32,8 @@ from vlm_api import create_vlm_client, vlm_chat_completion
 import requests
 
 DASHBOARD_UPDATE_URL = os.environ.get("DASHBOARD_UPDATE_URL", "http://127.0.0.1:5000/update")
-# 每次最终回答的基础帧预算；STRIVE 重试时仍可按原有规则增加到 48/64 帧。
-BASE_N_FRAMES = 32
+# 每次最终回答的基础帧预算；STRIVE 重试时按原有比例增加到 24/32 帧。
+BASE_N_FRAMES = 16
 
 
 def to_jsonable(value):
@@ -348,7 +348,7 @@ def stage1_locate_corrective(client, model, question, overview_frames,
 
 
 def answer_once_global_uniform(client, model, video_path, total_frames,
-                               qa_category, question, n_frames=32):
+                               qa_category, question, n_frames=16):
     """不走 STRIVE 的基线调用：全视频均匀抽 n_frames 帧，然后只问 VLM 一次。"""
     print(f"[NoVote] Sampling {n_frames} uniform frames from full video...", flush=True)
     frames = sample_frames_by_ratio_from_path(video_path, total_frames, 0.0, 1.0, n=n_frames)

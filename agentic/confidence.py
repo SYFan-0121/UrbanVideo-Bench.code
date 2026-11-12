@@ -281,7 +281,7 @@ def confident_answer(
     end_ratio: float,
     num_options: int = 5,
     K: int = 3,
-    n_frames: int = 32,
+    n_frames: int = 16,
     high_threshold: float = 0.70,
     low_threshold: float = 0.40,
     max_retries: int = 2,
@@ -414,7 +414,7 @@ def confident_answer(
                 return None, None, ""
 
         # 逐次发起 K 次投票。每次请求仍使用完整的 n_frames 和原始图像分辨率，
-        # 但不会把多个 32 帧请求同时压入单张 GPU，避免投票阶段显存峰值过高。
+        # 但不会把多个 16 帧请求同时压入单张 GPU，避免投票阶段显存峰值过高。
         _console_log(qa_idx, f"[STRIVE] Launching {K} serial VLM votes.")
         votes, self_scores, raw_outputs = [], [], []
         for vote_id, frames in enumerate(pre_sampled_frames, start=1):
@@ -599,7 +599,7 @@ def confident_answer(
             else:
                 # ── V 较高但 STRIVE 仍低 → 信号弱，帧密度不够 ──
                 # 窗口没有选错，只是每帧信息不足，加倍帧数
-                current_n = n_frames * 2   # 32 → 64
+                current_n = n_frames * 2   # 16 → 32
                 _console_log(
                     qa_idx,
                     f"[STRIVE] Next action: weak signal; increase frame density {n_frames}->{current_n}, "
@@ -616,7 +616,7 @@ def confident_answer(
                 "next action=dense resample.",
             )
             # 密集重采：增加帧数，保持同一时间窗口
-            current_n = int(n_frames * 1.5)   # 32 → 48
+            current_n = int(n_frames * 1.5)   # 16 → 24
             retry_count += 1
             time.sleep(2)
 
