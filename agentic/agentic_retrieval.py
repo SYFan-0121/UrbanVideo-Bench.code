@@ -30,6 +30,7 @@ from vlm_api import vlm_chat_completion
 
 # 创建缓存目录，用于存储 Agentic 抽帧中间结果。
 DEFAULT_CACHE_DIR = os.path.join("cache", "agentic_retrieval")
+RERANK_CANDIDATE_LIMIT = 21
 
 # 环境变量读取函数，用于控制视频解码并发等运行参数。
 def _env_int(name: str, default: int, minimum: int = 1) -> int:
@@ -769,6 +770,30 @@ def _ordered_unique(indices: list[int]) -> list[int]:
         unique.append(idx)
     return unique
 
+
+def _balanced_unique_candidates(candidate_pools: list[list[int]], limit: int) -> list[int]:
+    """Select unique rerank candidates round-robin so each retrieval source contributes."""
+    positions = [0] * len(candidate_pools)
+    seen = set()
+    selected = []
+    while len(selected) < limit:
+        added = False
+        for pool_index, pool in enumerate(candidate_pools):
+            while positions[pool_index] < len(pool) and int(pool[positions[pool_index]]) in seen:
+                positions[pool_index] += 1
+            if positions[pool_index] == len(pool):
+                continue
+            candidate = int(pool[positions[pool_index]])
+            positions[pool_index] += 1
+            seen.add(candidate)
+            selected.append(candidate)
+            added = True
+            if len(selected) == limit:
+                break
+        if not added:
+            break
+    return selected
+
 #根据当前视频长度、有效窗口大小，计算一个帧偏移量（gap），用于给不同变体（variant）做帧位置小扰动
 def _variant_neighbor_gap(total_frames: int, n_frames: int, start_ratio: float, end_ratio: float) -> int:
     window_start, window_end = _frame_window_bounds(total_frames, start_ratio, end_ratio)
@@ -1122,14 +1147,17 @@ class AgenticRetrievalContext:
             n_frames,
         )
 
-        # VLM rerank 的候选来自多路召回，最多保留 42 张缩略图控制 token 成本。
-        rerank_candidates = _ordered_unique(
-            _rotate_for_variant(windowed_pools.get("global", []), variant_id)[:10]
-            + _rotate_for_variant(windowed_pools.get("scene_change", []), variant_id)[:18]
-            + semantic_candidate_hits[:18]
-            + _rotate_for_variant(windowed_pools.get("tail", []), variant_id)[:8]
-            + _rotate_for_variant(windowed_pools.get("anchors", []), variant_id)[:8]
-        )[:42]
+        # 每轮最多 21 张，并在不同召回来源间轮转，避免截断时偏向列表前部。
+        rerank_candidates = _balanced_unique_candidates(
+            [
+                _rotate_for_variant(windowed_pools.get("global", []), variant_id)[:10],
+                _rotate_for_variant(windowed_pools.get("scene_change", []), variant_id)[:18],
+                semantic_candidate_hits[:18],
+                _rotate_for_variant(windowed_pools.get("tail", []), variant_id)[:8],
+                _rotate_for_variant(windowed_pools.get("anchors", []), variant_id)[:8],
+            ],
+            RERANK_CANDIDATE_LIMIT,
+        )
         _agentic_log(
             f"Preparing VLM rerank: candidates={len(rerank_candidates)}, variant_id={variant_id}"
         )

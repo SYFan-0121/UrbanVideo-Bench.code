@@ -75,6 +75,7 @@ GitHub 文件列表右侧显示的是该路径最近一次提交的说明。本�
 | [`deployment/windows_vlm_server.py`](deployment/windows_vlm_server.py) | 加载本地 Qwen2.5-VL 并提供 OpenAI 兼容多图推理接口 |
 | [`agentic/tests/dashboard.test.cjs`](agentic/tests/dashboard.test.cjs) | 回归检查题目选项解析、等待状态与答案高亮 |
 | [`agentic/tests/test_agentic_modes.py`](agentic/tests/test_agentic_modes.py) | 检查全部 16 类的两种 Agentic 模式、16 帧预算与结果保存 |
+| [`agentic/tests/test_retrieval_candidates.py`](agentic/tests/test_retrieval_candidates.py) | 检查 21 张重排候选在五类召回来源间均衡分配 |
 | [`agentic/tests/test_question_options.py`](agentic/tests/test_question_options.py) | 检查 2–7 项题目的提示范围、答案提取与 G 选项评估 |
 | [`uniform32/tests/test_uniform32.py`](uniform32/tests/test_uniform32.py) | 检查无水印采样、短视频全部帧、单次调用与失败题续跑 |
 

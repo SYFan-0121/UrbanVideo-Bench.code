@@ -12,3 +12,5 @@ python launch.py run.py
 ```
 
 验证：`python launch.py -m unittest discover -s tests -v`；前端看板测试：`node --test tests/dashboard.test.cjs`。
+
+Agentic 16 帧版本每个 STRIVE 变体最多向 VLM 重排提供 21 张均衡选出的候选缩略图；最终回答预算与图像分辨率保持不变。
